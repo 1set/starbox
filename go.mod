@@ -1,4 +1,4 @@
-module github.com/PureMature/starbox
+module github.com/1set/starbox
 
 go 1.18
 

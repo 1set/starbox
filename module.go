@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/1set/starlet"
-	// lrt "github.com/PureMature/starbox/module/runtime"
 )
 
 // ModuleSetName defines the name of a module set.
@@ -29,9 +28,7 @@ var (
 		NetworkModuleSet: removeUniques(fullModuleNames, "file", "path", "runtime"),
 		FullModuleSet:    appendUniques(fullModuleNames),
 	}
-	localModuleLoaders = starlet.ModuleLoaderMap{
-		// lrt.ModuleName: lrt.LoadModule,
-	}
+	localModuleLoaders = starlet.ModuleLoaderMap{}
 )
 
 // getModuleSet returns the module names for the given module set name.
