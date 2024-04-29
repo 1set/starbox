@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/1set/starlet"
 	"github.com/1set/starbox"
+	"github.com/1set/starlet"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 	"go.uber.org/zap"

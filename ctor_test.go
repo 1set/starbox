@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"bitbucket.org/ai69/amoy"
+	"github.com/1set/starbox"
 	"github.com/1set/starlet"
 	"github.com/1set/starlet/dataconv"
-	"github.com/1set/starbox"
 	"github.com/psanford/memfs"
 	"go.starlark.net/starlark"
 )

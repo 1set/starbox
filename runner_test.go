@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/1set/starlet"
 	"github.com/1set/starbox"
+	"github.com/1set/starlet"
 	"github.com/psanford/memfs"
 	"go.starlark.net/starlark"
 )
