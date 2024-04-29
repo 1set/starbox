@@ -1,4 +1,4 @@
-# 🥡 starbox
+# 🥡 starbox - Another Starlark runtime in a box
 
 [![godoc](https://pkg.go.dev/badge/github.com/PureMature/starbox.svg)](https://pkg.go.dev/github.com/PureMature/starbox)
 [![codecov](https://codecov.io/github/PureMature/starbox/graph/badge.svg?token=SHJ681OXJC)](https://codecov.io/github/PureMature/starbox)
