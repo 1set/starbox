@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/1set/starlet"
-	// lrt "github.com/PureMature/starbox/module/runtime"
+	// lrt "github.com/1set/starbox/module/runtime"
 )
 
 // ModuleSetName defines the name of a module set.

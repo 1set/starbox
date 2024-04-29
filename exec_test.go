@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/1set/starlet"
-	"github.com/PureMature/starbox"
+	"github.com/1set/starbox"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 	"go.uber.org/zap"
