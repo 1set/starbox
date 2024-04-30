@@ -435,6 +435,7 @@ func TestAddNamedModules(t *testing.T) {
 	b := starbox.New("test")
 	b.AddNamedModules("runtime")
 	b.AddNamedModules("base64")
+	b.AddNamedModules("runtime")
 	out, err := b.Run(hereDoc(`
 		s = base64.encode('Aloha!')
 		t = type(runtime.pid)
