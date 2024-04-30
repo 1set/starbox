@@ -46,6 +46,9 @@ func TestSimpleRun(t *testing.T) {
 	if s == 0 {
 		t.Error("expect positive steps, got 0")
 	}
+	if m := b.GetModuleNames(); len(m) != 0 {
+		t.Errorf("unexpected modules: %v", m)
+	}
 }
 
 func TestEmptyRun(t *testing.T) {
@@ -56,6 +59,9 @@ func TestEmptyRun(t *testing.T) {
 	}
 	if len(out) != 0 {
 		t.Errorf("unexpected output: %v", out)
+	}
+	if m := b.GetModuleNames(); len(m) != 0 {
+		t.Errorf("unexpected modules: %v", m)
 	}
 }
 

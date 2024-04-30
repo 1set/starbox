@@ -792,4 +792,8 @@ func TestAddNamedModuleAndModuleScript(t *testing.T) {
 	if es := []interface{}{"base64", "csv", "runtime", "runtime.star"}; !reflect.DeepEqual(out["m"].([]interface{}), es) {
 		t.Errorf("expect %v, got %v", es, out["m"])
 	}
+	if em := []string{"base64", "csv", "runtime", "runtime.star"}; !reflect.DeepEqual(em, b.GetModuleNames()) {
+		t.Errorf("expect %v, got %v", em, b.GetModuleNames())
+		return
+	}
 }

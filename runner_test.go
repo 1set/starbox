@@ -3,6 +3,7 @@ package starbox_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +56,7 @@ func TestRunnerConfig_Full(t *testing.T) {
 		t.Error("expect error, got nil")
 		return
 	}
+	t.Logf("error1: %v", e1)
 
 	res, e2 := cfg2.Execute()
 	if e2 != nil {
@@ -63,6 +65,10 @@ func TestRunnerConfig_Full(t *testing.T) {
 	}
 	if res["x"].(string) != "STAR" {
 		t.Errorf("expect x=STAR, got %v", res["x"])
+		return
+	}
+	if em := []string{"atom", "base64", "csv", "go_idiomatic", "hashlib", "json", "math", "random", "re", "string", "struct", "time"}; !reflect.DeepEqual(em, box.GetModuleNames()) {
+		t.Errorf("expect %v, got %v", em, box.GetModuleNames())
 		return
 	}
 	t.Logf("result: %v", res)
