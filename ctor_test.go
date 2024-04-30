@@ -747,3 +747,49 @@ func TestAddModuleScript(t *testing.T) {
 		})
 	}
 }
+
+// TestAddNamedModuleAndModuleScript tests the following:
+// 1. Create a new Starbox instance.
+// 2. Add named modules and module script.
+// 3. Run a script that uses function from the named modules and module script.
+// 4. Check the output to see if the named modules and module script conflict.
+func TestAddNamedModuleAndModuleScript(t *testing.T) {
+	b := starbox.New("test")
+	b.AddNamedModules("base64")
+	b.AddNamedModules("csv")
+	b.AddNamedModules("runtime")
+	b.AddModuleScript("runtime", hereDoc(`
+		pid = "ABC"
+	`))
+	out, err := b.Run(hereDoc(`
+		v1 = runtime.pid	# builtin
+		print("v1[b]", type(v1), v1)
+
+		load("runtime", p2="pid")	# builtin
+		v2 = p2
+		print("v2[b]", type(v2), v2)
+
+		load("runtime.star", p3="pid") # script
+		v3 = p3
+		print("v3[s]", type(v3), v3)
+
+		s = " ".join([type(v1), type(v2), type(v3)])
+		m = __modules__
+		print(__modules__)
+	`))
+	if err != nil {
+		t.Error(err)
+	}
+	if out == nil {
+		t.Error("expect not nil, got nil")
+	}
+	if len(out) != 5 {
+		t.Errorf("expect 5, got %d", len(out))
+	}
+	if es := `int int string`; out["s"] != es {
+		t.Errorf("expect %q, got %v", es, out["s"])
+	}
+	if es := []interface{}{"base64", "csv", "runtime", "runtime.star"}; !reflect.DeepEqual(out["m"].([]interface{}), es) {
+		t.Errorf("expect %v, got %v", es, out["m"])
+	}
+}
