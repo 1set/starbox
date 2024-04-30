@@ -35,6 +35,7 @@ type Starbox struct {
 	loadMods   starlet.ModuleLoaderMap
 	scriptMods map[string]string
 	modFS      fs.FS
+	modNames   []string
 }
 
 // New creates a new Starbox instance with default settings.
