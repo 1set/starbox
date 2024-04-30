@@ -486,6 +486,7 @@ func TestAddModuleLoader(t *testing.T) {
 		script string
 		want   int64
 	}{
+		{`c = len(__modules__)`, 2},
 		{`c = shift(a=10, b=4) + num`, 265},
 		{`load("mine", "shift", "num"); c = shift(a=10, b=5) * num`, 32500},
 		{`c = less.plus(a=10, b=4) + less.num + num`, 314},
@@ -528,6 +529,7 @@ func TestAddModuleData(t *testing.T) {
 		script string
 		want   int64
 	}{
+		{`c = len(__modules__)`, 1},
 		{`c = data.a + data.b`, 30},
 		{`load("data", "a", "b"); c = a * b`, 200},
 		{`load("data", "a", "b"); c = data.c * (a+b)`, 9000},
@@ -573,6 +575,7 @@ func TestAddModuleFunctions(t *testing.T) {
 		script string
 		want   int64
 	}{
+		{`c = len(__modules__)`, 1},
 		{`c = data.shift(a=10, b=4) + 100`, 267},
 		{`load("data", "shift"); c = shift(a=10, b=5) * 10`, 3270},
 		{`c = int(str(data.shift) == '<built-in function data.shift>')`, 1},
@@ -620,6 +623,7 @@ func TestAddStructData(t *testing.T) {
 		script string
 		want   int64
 	}{
+		{`c = len(__modules__)`, 1},
 		{`c = data.A + data.B`, 30},
 		{`c = data.A * data.B`, 200},
 		{`c = data.C * (data.A + data.B)`, 9000},
