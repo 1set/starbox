@@ -155,12 +155,6 @@ func (s *Starbox) prepareEnv() (err error) {
 		s.mac.SetLazyloadModules(lazyMods)
 	}
 
-	// set module names
-	s.modNames = modNames
-	s.mac.AddGlobals(starlet.StringAnyMap{
-		"__modules__": starlarkStringList(modNames),
-	})
-
 	// prepare script modules
 	if len(s.scriptMods) > 0 && s.modFS == nil {
 		rootFS := memfs.New()
@@ -169,9 +163,16 @@ func (s *Starbox) prepareEnv() (err error) {
 			if err := rootFS.WriteFile(fp, []byte(scr), 0644); err != nil {
 				return err
 			}
+			modNames = append(modNames, fp)
 		}
 		s.modFS = rootFS
 	}
+
+	// set load module names
+	s.modNames = modNames
+	s.mac.AddGlobals(starlet.StringAnyMap{
+		"__modules__": starlarkStringList(modNames),
+	})
 	return nil
 }
 
