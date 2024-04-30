@@ -1,4 +1,4 @@
-# :takeout_box: Starbox - Another Starlark runtime in a box
+# :takeout_box: Starbox - Unboxing the Potential of Starlark
 
 [![godoc](https://pkg.go.dev/badge/github.com/1set/starbox.svg)](https://pkg.go.dev/github.com/1set/starbox)
 [![codecov](https://codecov.io/github/1set/starbox/graph/badge.svg?token=8v1rqUSOfD)](https://codecov.io/github/1set/starbox)
