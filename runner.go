@@ -167,6 +167,10 @@ func (c *RunnerConfig) Execute() (starlet.StringAnyMap, error) {
 		cfg.ctx = nt
 	}
 
+	// lock the box
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	// if it's the first run, set the environment
 	if !b.hasExec {
 		if err := b.prepareEnv(); err != nil {

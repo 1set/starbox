@@ -63,6 +63,9 @@ func (s *Starbox) String() string {
 
 // GetMachine returns the underlying starlet.Machine instance.
 func (s *Starbox) GetMachine() *starlet.Machine {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	return s.mac
 }
 
@@ -77,6 +80,14 @@ func (s *Starbox) GetSteps() uint64 {
 		}
 	}
 	return 0
+}
+
+// GetModuleNames returns the names of the modules loaded after execution.
+func (s *Starbox) GetModuleNames() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.modNames
 }
 
 // SetStructTag sets the custom tag of Go struct fields for Starlark.

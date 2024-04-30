@@ -35,9 +35,10 @@ func TestRunnerConfig_Empty(t *testing.T) {
 
 func TestRunnerConfig_Full(t *testing.T) {
 	box := starbox.New("aloha")
+	box.SetModuleSet(starbox.SafeModuleSet)
 	cfg := starbox.NewRunConfig().
 		FileName("mine.star").
-		Script("print('Hello, {}!'.format(word)); x = word.upper()").
+		Script("print('Hello, {}!'.format(word)); x = word.upper(); print(__modules__)").
 		Context(context.TODO()).
 		KeyValue("word", "World").
 		Timeout(5*time.Second).
