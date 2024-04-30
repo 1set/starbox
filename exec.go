@@ -154,7 +154,12 @@ func (s *Starbox) prepareEnv() (err error) {
 		s.mac.SetPreloadModules(preMods)
 		s.mac.SetLazyloadModules(lazyMods)
 	}
+
+	// set module names
 	s.modNames = modNames
+	s.mac.AddGlobals(starlet.StringAnyMap{
+		"__modules__": starlarkStringList(modNames),
+	})
 
 	// prepare script modules
 	if len(s.scriptMods) > 0 && s.modFS == nil {

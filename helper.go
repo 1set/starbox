@@ -5,6 +5,8 @@ import (
 	"os"
 	"sort"
 
+	"go.starlark.net/starlark"
+
 	"github.com/1set/starlet"
 	"github.com/1set/starlet/dataconv"
 	"github.com/h2so5/here"
@@ -123,4 +125,16 @@ func appendUniques(ss []string, appends ...string) []string {
 		}
 	}
 	return output
+}
+
+// starlarkStringList converts a slice of strings to a list of starlark.Values.
+func starlarkStringList(ss []string) *starlark.List {
+	if len(ss) == 0 {
+		return starlark.NewList(nil)
+	}
+	values := make([]starlark.Value, len(ss))
+	for i, s := range ss {
+		values[i] = starlark.String(s)
+	}
+	return starlark.NewList(values)
 }

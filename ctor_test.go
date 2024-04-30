@@ -3,6 +3,7 @@ package starbox_test
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -430,6 +431,7 @@ func TestAddNamedModules(t *testing.T) {
 	out, err := b.Run(hereDoc(`
 		s = base64.encode('Aloha!')
 		t = type(runtime.pid)
+		m = __modules__
 	`))
 	if err != nil {
 		t.Error(err)
@@ -437,14 +439,17 @@ func TestAddNamedModules(t *testing.T) {
 	if out == nil {
 		t.Error("expect not nil, got nil")
 	}
-	if len(out) != 2 {
-		t.Errorf("expect 2, got %d", len(out))
+	if len(out) != 3 {
+		t.Errorf("expect 3, got %d", len(out))
 	}
 	if es := `QWxvaGEh`; out["s"] != es {
 		t.Errorf("expect %q, got %v", es, out["s"])
 	}
 	if es := `int`; out["t"] != es {
 		t.Errorf("expect %q, got %v", es, out["t"])
+	}
+	if es := []interface{}{"base64", "runtime"}; !reflect.DeepEqual(out["m"].([]interface{}), es) {
+		t.Errorf("expect %v, got %v", es, out["m"])
 	}
 }
 
