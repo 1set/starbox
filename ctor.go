@@ -316,6 +316,7 @@ func (s *Starbox) AddStructData(structName string, structData starlark.StringDic
 
 // AddModuleScript creates a module with given module script in virtual filesystem, and adds it to the preload and lazyload registry.
 // The given module script can be accessed in script via load("module_name", "key1") or load("module_name.star", "key1") if module name has no ".star" suffix.
+// All the module scripts added by this method would be overridden by SetFS() if it's not nil.
 // It panics if called after execution.
 func (s *Starbox) AddModuleScript(moduleName, moduleScript string) {
 	s.mu.Lock()

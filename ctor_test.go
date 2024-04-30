@@ -159,6 +159,8 @@ func TestSetFS(t *testing.T) {
 	out, err := b.Run(hereDoc(`
 		load("test.star", "a", "b")
 		c = a + b
+		print(__modules__)
+		m = len(__modules__)
 	`))
 	if err != nil {
 		t.Error(err)
@@ -168,12 +170,16 @@ func TestSetFS(t *testing.T) {
 		t.Error("expect not nil, got nil")
 		return
 	}
-	if len(out) != 1 {
-		t.Errorf("expect 1, got %d", len(out))
+	if len(out) != 2 {
+		t.Errorf("expect 2, got %d", len(out))
 		return
 	}
 	if es := int64(30); out["c"] != es {
 		t.Errorf("expect %d, got %v", es, out["c"])
+		return
+	}
+	if es := int64(0); out["m"] != es {
+		t.Errorf("expect %d, got %v", es, out["m"])
 		return
 	}
 
@@ -262,11 +268,12 @@ func TestSetModuleSet(t *testing.T) {
 			// check for existing modules
 			for _, m := range tt.hasMod {
 				b := getBox()
-				_, err := b.Run(hereDoc(fmt.Sprintf(`print(type(%s))`, m)))
+				res, err := b.Run(hereDoc(fmt.Sprintf(`print(type(%s)); m = __modules__`, m)))
 				if err != nil {
 					t.Errorf("expect nil for existing module %q, got %v", m, err)
 					return
 				}
+				t.Logf("{%s} modules: %v", tt.setName, res["m"])
 			}
 
 			// check for non-existing modules
@@ -426,8 +433,8 @@ func TestAddBuiltin(t *testing.T) {
 // 4. Check the output to see if the named modules are present.
 func TestAddNamedModules(t *testing.T) {
 	b := starbox.New("test")
-	b.AddNamedModules("base64")
 	b.AddNamedModules("runtime")
+	b.AddNamedModules("base64")
 	out, err := b.Run(hereDoc(`
 		s = base64.encode('Aloha!')
 		t = type(runtime.pid)
