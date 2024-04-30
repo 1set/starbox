@@ -1,10 +1,13 @@
 package starbox
 
 import (
+	"fmt"
+	"os"
 	"sort"
 
 	"github.com/1set/starlet"
 	"github.com/1set/starlet/dataconv"
+	"github.com/h2so5/here"
 )
 
 const (
@@ -46,7 +49,19 @@ func (s *Starbox) CreateMemory(name string) *dataconv.SharedDict {
 	return memory
 }
 
+var (
+	// HereDoc returns unindented string as here-document.
+	HereDoc = here.Doc
+	// HereDocf returns formatted unindented string as here-document.
+	HereDocf = here.Docf
+)
+
 // HERE GOES THE INTERNALS
+
+// eprintln likes fmt.Println but use stderr as the output.
+func eprintln(a ...interface{}) (n int, err error) {
+	return fmt.Fprintln(os.Stderr, a...)
+}
 
 // uniqueStrings returns a new slice of strings with duplicates removed and sorted.
 func uniqueStrings(ss []string) []string {

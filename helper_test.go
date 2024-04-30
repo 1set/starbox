@@ -3,12 +3,7 @@ package starbox
 import (
 	"testing"
 
-	"bitbucket.org/ai69/amoy"
 	"go.starlark.net/starlark"
-)
-
-var (
-	hereDoc = amoy.HereDocf
 )
 
 // TestCollectiveMemory tests the following:
@@ -24,7 +19,7 @@ func TestCollectiveMemory(t *testing.T) {
 	// create a new Starbox instance: b1
 	b1 := New("test1")
 	mem := b1.CreateMemory("share")
-	s1 := hereDoc(`
+	s1 := HereDoc(`
 		a = 10
 		b = 20
 		c = a * b
@@ -54,7 +49,7 @@ func TestCollectiveMemory(t *testing.T) {
 	// create a new Starbox instance: b2
 	b2 := New("test2")
 	b2.AttachMemory("history", mem)
-	s2 := hereDoc(`
+	s2 := HereDoc(`
 		d = history["v"]
 		e = d << 2
 		history["v"] = e + 1

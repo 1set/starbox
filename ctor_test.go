@@ -6,16 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"bitbucket.org/ai69/amoy"
 	"github.com/1set/starbox"
 	"github.com/1set/starlet"
 	"github.com/1set/starlet/dataconv"
+	"github.com/h2so5/here"
 	"github.com/psanford/memfs"
 	"go.starlark.net/starlark"
 )
 
 var (
-	hereDoc   = amoy.HereDocf
+	hereDoc   = here.Docf
 	noopPrint = func(thread *starlark.Thread, msg string) {
 		return
 	}

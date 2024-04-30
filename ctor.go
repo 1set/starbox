@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"bitbucket.org/ai69/amoy"
 	"github.com/1set/starlet"
 	"github.com/1set/starlet/dataconv"
 	libhttp "github.com/1set/starlet/lib/http"
@@ -51,7 +50,7 @@ func newStarMachine(name string) *starlet.Machine {
 	// m.SetOutputConversionEnabled(true)
 	m.SetPrintFunc(func(thread *starlark.Thread, msg string) {
 		prefix := fmt.Sprintf("[⭐|%s](%s)", name, time.Now().UTC().Format(`15:04:05.000`))
-		amoy.Eprintln(prefix, msg)
+		eprintln(prefix, msg)
 	})
 	return m
 }
