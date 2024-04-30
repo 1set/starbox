@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"bitbucket.org/ai69/amoy"
 	"github.com/1set/starlet"
 	"github.com/1set/starlet/dataconv"
 	libhttp "github.com/1set/starlet/lib/http"
@@ -36,6 +35,7 @@ type Starbox struct {
 	loadMods   starlet.ModuleLoaderMap
 	scriptMods map[string]string
 	modFS      fs.FS
+	modNames   []string
 }
 
 // New creates a new Starbox instance with default settings.
@@ -51,7 +51,7 @@ func newStarMachine(name string) *starlet.Machine {
 	// m.SetOutputConversionEnabled(true)
 	m.SetPrintFunc(func(thread *starlark.Thread, msg string) {
 		prefix := fmt.Sprintf("[⭐|%s](%s)", name, time.Now().UTC().Format(`15:04:05.000`))
-		amoy.Eprintln(prefix, msg)
+		eprintln(prefix, msg)
 	})
 	return m
 }
@@ -63,6 +63,9 @@ func (s *Starbox) String() string {
 
 // GetMachine returns the underlying starlet.Machine instance.
 func (s *Starbox) GetMachine() *starlet.Machine {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	return s.mac
 }
 
@@ -77,6 +80,14 @@ func (s *Starbox) GetSteps() uint64 {
 		}
 	}
 	return 0
+}
+
+// GetModuleNames returns the names of the modules loaded after execution.
+func (s *Starbox) GetModuleNames() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.modNames
 }
 
 // SetStructTag sets the custom tag of Go struct fields for Starlark.
@@ -316,6 +327,7 @@ func (s *Starbox) AddStructData(structName string, structData starlark.StringDic
 
 // AddModuleScript creates a module with given module script in virtual filesystem, and adds it to the preload and lazyload registry.
 // The given module script can be accessed in script via load("module_name", "key1") or load("module_name.star", "key1") if module name has no ".star" suffix.
+// All the module scripts added by this method would be overridden by SetFS() if it's not nil.
 // It panics if called after execution.
 func (s *Starbox) AddModuleScript(moduleName, moduleScript string) {
 	s.mu.Lock()

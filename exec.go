@@ -144,7 +144,7 @@ func (s *Starbox) prepareEnv() (err error) {
 	s.mac.SetGlobals(s.globals)
 
 	// extract module loaders
-	preMods, lazyMods, err := s.extractModLoads()
+	preMods, lazyMods, modNames, err := s.extractModLoads()
 	if err != nil {
 		return err
 	}
@@ -163,17 +163,23 @@ func (s *Starbox) prepareEnv() (err error) {
 			if err := rootFS.WriteFile(fp, []byte(scr), 0644); err != nil {
 				return err
 			}
+			modNames = append(modNames, fp)
 		}
 		s.modFS = rootFS
 	}
+
+	// set load module names
+	s.modNames = modNames
+	s.mac.AddGlobals(starlet.StringAnyMap{
+		"__modules__": starlarkStringList(modNames),
+	})
 	return nil
 }
 
-func (s *Starbox) extractModLoads() (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, err error) {
+func (s *Starbox) extractModLoads() (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
 	// get modules by name: local module set + individual names for starlet
-	var modNames []string
 	if modNames, err = getModuleSet(s.modSet); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	modNames = append(modNames, s.builtMods...)
 	modNames = uniqueStrings(modNames)
@@ -198,10 +204,10 @@ func (s *Starbox) extractModLoads() (preMods starlet.ModuleLoaderList, lazyMods 
 	// convert starlet builtin module names to module loaders
 	if len(modNames) > 0 {
 		if preMods, err = starlet.MakeBuiltinModuleLoaderList(modNames...); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if lazyMods, err = starlet.MakeBuiltinModuleLoaderMap(modNames...); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
@@ -216,9 +222,12 @@ func (s *Starbox) extractModLoads() (preMods starlet.ModuleLoaderList, lazyMods 
 		for name, loader := range modLoads {
 			preMods = append(preMods, loader)
 			lazyMods[name] = loader
+			modNames = append(modNames, name)
 		}
+		// remove duplicates
+		modNames = uniqueStrings(modNames)
 	}
 
 	// result
-	return preMods, lazyMods, nil
+	return preMods, lazyMods, modNames, nil
 }

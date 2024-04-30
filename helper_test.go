@@ -1,14 +1,10 @@
 package starbox
 
 import (
+	"reflect"
 	"testing"
 
-	"bitbucket.org/ai69/amoy"
 	"go.starlark.net/starlark"
-)
-
-var (
-	hereDoc = amoy.HereDocf
 )
 
 // TestCollectiveMemory tests the following:
@@ -24,7 +20,7 @@ func TestCollectiveMemory(t *testing.T) {
 	// create a new Starbox instance: b1
 	b1 := New("test1")
 	mem := b1.CreateMemory("share")
-	s1 := hereDoc(`
+	s1 := HereDoc(`
 		a = 10
 		b = 20
 		c = a * b
@@ -54,7 +50,7 @@ func TestCollectiveMemory(t *testing.T) {
 	// create a new Starbox instance: b2
 	b2 := New("test2")
 	b2.AttachMemory("history", mem)
-	s2 := hereDoc(`
+	s2 := HereDoc(`
 		d = history["v"]
 		e = d << 2
 		history["v"] = e + 1
@@ -349,6 +345,60 @@ func TestAppendUniques(t *testing.T) {
 				if v != tc.expected[i] {
 					t.Errorf("Expected element %d to be %s, got %s", i, tc.expected[i], v)
 				}
+			}
+		})
+	}
+}
+
+func TestStarlarkStringList(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		expected starlark.Value
+	}{
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: starlark.NewList(nil),
+		},
+		{
+			name:     "empty input",
+			input:    []string{},
+			expected: starlark.NewList(nil),
+		},
+		{
+			name:     "single element",
+			input:    []string{"a"},
+			expected: starlark.NewList([]starlark.Value{starlark.String("a")}),
+		},
+		{
+			name:     "multiple elements",
+			input:    []string{"a", "b", "c"},
+			expected: starlark.NewList([]starlark.Value{starlark.String("a"), starlark.String("b"), starlark.String("c")}),
+		},
+		{
+			name:     "empty strings",
+			input:    []string{"", "", ""},
+			expected: starlark.NewList([]starlark.Value{starlark.String(""), starlark.String(""), starlark.String("")}),
+		},
+		{
+			name:  "with duplicates",
+			input: []string{"a", "b", "c", "a", "b", "c"},
+			expected: starlark.NewList([]starlark.Value{
+				starlark.String("a"), starlark.String("b"), starlark.String("c"),
+				starlark.String("a"), starlark.String("b"), starlark.String("c"),
+			}),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := starlarkStringList(tc.input)
+			if el := tc.expected.(*starlark.List).Len(); result.Len() != el {
+				t.Errorf("Expected length %d, got %d", el, result.Len())
+				return
+			}
+			if !reflect.DeepEqual(result, tc.expected) {
+				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}
 		})
 	}

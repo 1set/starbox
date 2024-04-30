@@ -1,10 +1,15 @@
 package starbox
 
 import (
+	"fmt"
+	"os"
 	"sort"
+
+	"go.starlark.net/starlark"
 
 	"github.com/1set/starlet"
 	"github.com/1set/starlet/dataconv"
+	"github.com/h2so5/here"
 )
 
 const (
@@ -46,7 +51,19 @@ func (s *Starbox) CreateMemory(name string) *dataconv.SharedDict {
 	return memory
 }
 
+var (
+	// HereDoc returns unindented string as here-document.
+	HereDoc = here.Doc
+	// HereDocf returns formatted unindented string as here-document.
+	HereDocf = here.Docf
+)
+
 // HERE GOES THE INTERNALS
+
+// eprintln likes fmt.Println but use stderr as the output.
+func eprintln(a ...interface{}) (n int, err error) {
+	return fmt.Fprintln(os.Stderr, a...)
+}
 
 // uniqueStrings returns a new slice of strings with duplicates removed and sorted.
 func uniqueStrings(ss []string) []string {
@@ -108,4 +125,16 @@ func appendUniques(ss []string, appends ...string) []string {
 		}
 	}
 	return output
+}
+
+// starlarkStringList converts a slice of strings to a list of starlark.Values.
+func starlarkStringList(ss []string) *starlark.List {
+	if len(ss) == 0 {
+		return starlark.NewList(nil)
+	}
+	values := make([]starlark.Value, len(ss))
+	for i, s := range ss {
+		values[i] = starlark.String(s)
+	}
+	return starlark.NewList(values)
 }

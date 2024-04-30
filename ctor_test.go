@@ -3,10 +3,10 @@ package starbox_test
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
-	"bitbucket.org/ai69/amoy"
 	"github.com/1set/starbox"
 	"github.com/1set/starlet"
 	"github.com/1set/starlet/dataconv"
@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	hereDoc   = amoy.HereDocf
+	hereDoc   = starbox.HereDocf
 	noopPrint = func(thread *starlark.Thread, msg string) {
 		return
 	}
@@ -159,6 +159,8 @@ func TestSetFS(t *testing.T) {
 	out, err := b.Run(hereDoc(`
 		load("test.star", "a", "b")
 		c = a + b
+		print(__modules__)
+		m = len(__modules__)
 	`))
 	if err != nil {
 		t.Error(err)
@@ -168,12 +170,16 @@ func TestSetFS(t *testing.T) {
 		t.Error("expect not nil, got nil")
 		return
 	}
-	if len(out) != 1 {
-		t.Errorf("expect 1, got %d", len(out))
+	if len(out) != 2 {
+		t.Errorf("expect 2, got %d", len(out))
 		return
 	}
 	if es := int64(30); out["c"] != es {
 		t.Errorf("expect %d, got %v", es, out["c"])
+		return
+	}
+	if es := int64(0); out["m"] != es {
+		t.Errorf("expect %d, got %v", es, out["m"])
 		return
 	}
 
@@ -262,11 +268,12 @@ func TestSetModuleSet(t *testing.T) {
 			// check for existing modules
 			for _, m := range tt.hasMod {
 				b := getBox()
-				_, err := b.Run(hereDoc(fmt.Sprintf(`print(type(%s))`, m)))
+				res, err := b.Run(hereDoc(fmt.Sprintf(`print(type(%s)); m = __modules__`, m)))
 				if err != nil {
 					t.Errorf("expect nil for existing module %q, got %v", m, err)
 					return
 				}
+				t.Logf("{%s} modules: %v", tt.setName, res["m"])
 			}
 
 			// check for non-existing modules
@@ -426,11 +433,13 @@ func TestAddBuiltin(t *testing.T) {
 // 4. Check the output to see if the named modules are present.
 func TestAddNamedModules(t *testing.T) {
 	b := starbox.New("test")
+	b.AddNamedModules("runtime")
 	b.AddNamedModules("base64")
 	b.AddNamedModules("runtime")
 	out, err := b.Run(hereDoc(`
 		s = base64.encode('Aloha!')
 		t = type(runtime.pid)
+		m = __modules__
 	`))
 	if err != nil {
 		t.Error(err)
@@ -438,14 +447,17 @@ func TestAddNamedModules(t *testing.T) {
 	if out == nil {
 		t.Error("expect not nil, got nil")
 	}
-	if len(out) != 2 {
-		t.Errorf("expect 2, got %d", len(out))
+	if len(out) != 3 {
+		t.Errorf("expect 3, got %d", len(out))
 	}
 	if es := `QWxvaGEh`; out["s"] != es {
 		t.Errorf("expect %q, got %v", es, out["s"])
 	}
 	if es := `int`; out["t"] != es {
 		t.Errorf("expect %q, got %v", es, out["t"])
+	}
+	if es := []interface{}{"base64", "runtime"}; !reflect.DeepEqual(out["m"].([]interface{}), es) {
+		t.Errorf("expect %v, got %v", es, out["m"])
 	}
 }
 
@@ -482,6 +494,7 @@ func TestAddModuleLoader(t *testing.T) {
 		script string
 		want   int64
 	}{
+		{`print(__modules__); c = len(__modules__)`, 2},
 		{`c = shift(a=10, b=4) + num`, 265},
 		{`load("mine", "shift", "num"); c = shift(a=10, b=5) * num`, 32500},
 		{`c = less.plus(a=10, b=4) + less.num + num`, 314},
@@ -524,6 +537,7 @@ func TestAddModuleData(t *testing.T) {
 		script string
 		want   int64
 	}{
+		{`print(__modules__); c = len(__modules__)`, 1},
 		{`c = data.a + data.b`, 30},
 		{`load("data", "a", "b"); c = a * b`, 200},
 		{`load("data", "a", "b"); c = data.c * (a+b)`, 9000},
@@ -569,6 +583,7 @@ func TestAddModuleFunctions(t *testing.T) {
 		script string
 		want   int64
 	}{
+		{`print(__modules__); c = len(__modules__)`, 1},
 		{`c = data.shift(a=10, b=4) + 100`, 267},
 		{`load("data", "shift"); c = shift(a=10, b=5) * 10`, 3270},
 		{`c = int(str(data.shift) == '<built-in function data.shift>')`, 1},
@@ -616,6 +631,7 @@ func TestAddStructData(t *testing.T) {
 		script string
 		want   int64
 	}{
+		{`print(__modules__); c = len(__modules__)`, 1},
 		{`c = data.A + data.B`, 30},
 		{`c = data.A * data.B`, 200},
 		{`c = data.C * (data.A + data.B)`, 9000},
@@ -663,6 +679,7 @@ func TestAddStructFunctions(t *testing.T) {
 		script string
 		want   int64
 	}{
+		{`print(__modules__); c = len(__modules__)`, 1},
 		{`c = data.shift(a=10, b=4) + 100`, 267},
 		{`load("data", "shift"); c = shift(a=10, b=5) * 10`, 3270},
 		{`c = int(str(data.shift) == '<built-in function data.shift>')`, 1},
@@ -707,6 +724,7 @@ func TestAddModuleScript(t *testing.T) {
 		script string
 		want   int64
 	}{
+		{`print(__modules__); c = len(__modules__)`, 1},
 		{`load("data.star", "a", "b"); c = a * b`, 200},
 		{`load("data", "shift"); c = shift(2, 10)`, 2058},
 	}
@@ -728,5 +746,55 @@ func TestAddModuleScript(t *testing.T) {
 				t.Errorf("expect %d, got %v", es, out["c"])
 			}
 		})
+	}
+}
+
+// TestAddNamedModuleAndModuleScript tests the following:
+// 1. Create a new Starbox instance.
+// 2. Add named modules and module script.
+// 3. Run a script that uses function from the named modules and module script.
+// 4. Check the output to see if the named modules and module script conflict.
+func TestAddNamedModuleAndModuleScript(t *testing.T) {
+	b := starbox.New("test")
+	b.AddNamedModules("base64")
+	b.AddNamedModules("csv")
+	b.AddNamedModules("runtime")
+	b.AddModuleScript("runtime", hereDoc(`
+		pid = "ABC"
+	`))
+	out, err := b.Run(hereDoc(`
+		v1 = runtime.pid	# builtin
+		print("v1[b]", type(v1), v1)
+
+		load("runtime", p2="pid")	# builtin
+		v2 = p2
+		print("v2[b]", type(v2), v2)
+
+		load("runtime.star", p3="pid") # script
+		v3 = p3
+		print("v3[s]", type(v3), v3)
+
+		s = " ".join([type(v1), type(v2), type(v3)])
+		m = __modules__
+		print(__modules__)
+	`))
+	if err != nil {
+		t.Error(err)
+	}
+	if out == nil {
+		t.Error("expect not nil, got nil")
+	}
+	if len(out) != 5 {
+		t.Errorf("expect 5, got %d", len(out))
+	}
+	if es := `int int string`; out["s"] != es {
+		t.Errorf("expect %q, got %v", es, out["s"])
+	}
+	if es := []interface{}{"base64", "csv", "runtime", "runtime.star"}; !reflect.DeepEqual(out["m"].([]interface{}), es) {
+		t.Errorf("expect %v, got %v", es, out["m"])
+	}
+	if em := []string{"base64", "csv", "runtime", "runtime.star"}; !reflect.DeepEqual(em, b.GetModuleNames()) {
+		t.Errorf("expect %v, got %v", em, b.GetModuleNames())
+		return
 	}
 }
