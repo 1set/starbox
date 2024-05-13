@@ -490,16 +490,16 @@ func TestCallStarFunc(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			box := tt.genBox()
-			got, err := box.CallStarFunc(tt.callName, tt.callArgs...)
+			got, err := box.CallStarlarkFunc(tt.callName, tt.callArgs...)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("CallStarFunc() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("CallStarlarkFunc() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.expected) {
-				t.Errorf("CallStarFunc() wrong value, got = %v (%T), want %v (%T)", got, got, tt.expected, tt.expected)
+				t.Errorf("CallStarlarkFunc() wrong value, got = %v (%T), want %v (%T)", got, got, tt.expected, tt.expected)
 				return
 			}
-			t.Logf("CallStarFunc(%s) = (%v, %v)", tt.callName, got, err)
+			t.Logf("CallStarlarkFunc(%s) = (%v, %v)", tt.callName, got, err)
 		})
 	}
 }

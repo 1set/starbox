@@ -103,8 +103,8 @@ func (s *Starbox) RunInspectIf(script string, cond InspectCondFunc) (starlet.Str
 	return out, err
 }
 
-// CallStarFunc executes a function defined in Starlark with arguments and returns the converted output.
-func (s *Starbox) CallStarFunc(name string, args ...interface{}) (interface{}, error) {
+// CallStarlarkFunc executes a function defined in Starlark with arguments and returns the converted output.
+func (s *Starbox) CallStarlarkFunc(name string, args ...interface{}) (interface{}, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
