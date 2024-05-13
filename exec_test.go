@@ -285,6 +285,92 @@ func TestCallStarFunc(t *testing.T) {
 			expected: "Aloha!",
 		},
 		{
+			name: "simple empty args",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: []interface{}{},
+			expected: "Aloha!",
+		},
+		{
+			name: "no name",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "wrong name",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "sunny",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "extra args",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: []interface{}{100},
+			wantErr:  true,
+		},
+		{
+			name: "not callable",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+					ahuihou = 999
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "ahuihou",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
 			name: "runtime error before",
 			genBox: func() *starbox.Starbox {
 				box := starbox.New("test")
