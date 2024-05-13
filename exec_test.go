@@ -2,6 +2,7 @@ package starbox_test
 
 import (
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
 
@@ -226,6 +227,289 @@ func TestRunInspectIf(t *testing.T) {
 			t.Errorf("expected error but not, output3: %v", out)
 		}
 		t.Logf("output3: %v", out)
+	}
+}
+
+func TestCallStarFunc(t *testing.T) {
+	tests := []struct {
+		name     string
+		genBox   func() *starbox.Starbox
+		callName string
+		callArgs []interface{}
+		wantErr  bool
+		expected interface{}
+	}{
+		{
+			name: "no box",
+			genBox: func() *starbox.Starbox {
+				return nil
+			},
+			callName: "aloha",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "not load",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				box.AddModuleScript("hello", hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				return box
+			},
+			callName: "hello.aloha",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "no load leak",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				box.AddModuleScript("hello", hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				_, _ = box.Run(``)
+				return box
+			},
+			callName: "hello.aloha",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "simple",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: nil,
+			expected: "Aloha!",
+		},
+		{
+			name: "simple empty args",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: []interface{}{},
+			expected: "Aloha!",
+		},
+		{
+			name: "no name",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "wrong name",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "sunny",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "extra args",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: []interface{}{100},
+			wantErr:  true,
+		},
+		{
+			name: "not callable",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+					ahuihou = 999
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "ahuihou",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "runtime error before",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					run_error += 1
+					def aloha():
+						return "Aloha!"
+				`))
+				if err == nil {
+					t.Errorf("expected error but not")
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "runtime error after",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+					run_error += 1
+				`))
+				if err == nil {
+					t.Errorf("expected error but not")
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: nil,
+			expected: "Aloha!",
+		},
+		{
+			name: "build twice",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				ss := []string{
+					hereDoc(`
+						def aloha():
+							return "Hello"
+					`),
+					hereDoc(`
+						def aloha():
+							return "Aloha!"
+					`),
+				}
+				for _, s := range ss {
+					_, err := box.Run(s)
+					if err != nil {
+						t.Errorf("unexpected error while building box: %v", err)
+					}
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: nil,
+			expected: "Aloha!",
+		},
+		{
+			name: "redirect go func",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				box.AddKeyValue("func", func() string {
+					return "Mahalo~"
+				})
+				_, err := box.Run(hereDoc(`
+					aloha = func
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: nil,
+			expected: "Mahalo~",
+		},
+		{
+			name: "params: in",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def calc(a, b):
+						return a * b
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "calc",
+			callArgs: []interface{}{0.5, 10},
+			expected: float64(5),
+		},
+		{
+			name: "params: out",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def calc(a, b):
+						return b, a, 2
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "calc",
+			callArgs: []interface{}{1, 0},
+			expected: []interface{}{int64(0), int64(1), int64(2)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			box := tt.genBox()
+			got, err := box.CallStarlarkFunc(tt.callName, tt.callArgs...)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CallStarlarkFunc() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("CallStarlarkFunc() wrong value, got = %v (%T), want %v (%T)", got, got, tt.expected, tt.expected)
+				return
+			}
+			t.Logf("CallStarlarkFunc(%s) = (%v, %v)", tt.callName, got, err)
+		})
 	}
 }
 

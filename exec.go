@@ -1,6 +1,7 @@
 package starbox
 
 import (
+	"errors"
 	"time"
 
 	"github.com/1set/starlet"
@@ -100,6 +101,20 @@ func (s *Starbox) RunInspectIf(script string, cond InspectCondFunc) (starlet.Str
 		s.mac.REPL()
 	}
 	return out, err
+}
+
+// CallStarlarkFunc executes a function defined in Starlark with arguments and returns the converted output.
+func (s *Starbox) CallStarlarkFunc(name string, args ...interface{}) (interface{}, error) {
+	if s == nil || s.mac == nil {
+		return nil, errors.New("no starlet machine")
+	}
+
+	// lock it
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// call it
+	return s.mac.Call(name, args...)
 }
 
 // Reset creates an new Starlet machine and keeps the settings.
