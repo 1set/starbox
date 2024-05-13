@@ -229,6 +229,46 @@ func TestRunInspectIf(t *testing.T) {
 	}
 }
 
+func TestCallStarFunc(t *testing.T) {
+	tests := []struct {
+		name     string
+		genBox   func() *starbox.Starbox
+		callName string
+		callArgs []interface{}
+		wantErr  bool
+		expected interface{}
+	}{
+		{
+			name: "simple",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				box.AddModuleScript("hello", hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				return box
+			},
+			callName: "hello.aloha",
+			callArgs: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			box := tt.genBox()
+			got, err := box.CallStarFunc(tt.callName, tt.callArgs...)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CallStarFunc() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.expected {
+				t.Errorf("CallStarFunc() = %v, want %v", got, tt.expected)
+				return
+			}
+			t.Logf("CallStarFunc(%s) = %v, %v", tt.callName, got, err)
+		})
+	}
+}
+
 func TestSetAddRunPanic(t *testing.T) {
 	getBox := func(t *testing.T) *starbox.Starbox {
 		b := starbox.New("test")
