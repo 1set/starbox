@@ -239,7 +239,7 @@ func TestCallStarFunc(t *testing.T) {
 		expected interface{}
 	}{
 		{
-			name: "simple",
+			name: "not load",
 			genBox: func() *starbox.Starbox {
 				box := starbox.New("test")
 				box.AddModuleScript("hello", hereDoc(`
@@ -250,6 +250,75 @@ func TestCallStarFunc(t *testing.T) {
 			},
 			callName: "hello.aloha",
 			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "no load leak",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				box.AddModuleScript("hello", hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				_, _ = box.Run(``)
+				return box
+			},
+			callName: "hello.aloha",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "simple",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: nil,
+			expected: "Aloha!",
+		},
+		{
+			name: "runtime error before",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					run_error += 1
+					def aloha():
+						return "Aloha!"
+				`))
+				if err == nil {
+					t.Errorf("expected error but not")
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
+			name: "runtime error after",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def aloha():
+						return "Aloha!"
+					run_error += 1
+				`))
+				if err == nil {
+					t.Errorf("expected error but not")
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: nil,
+			expected: "Aloha!",
 		},
 	}
 	for _, tt := range tests {
@@ -264,7 +333,7 @@ func TestCallStarFunc(t *testing.T) {
 				t.Errorf("CallStarFunc() = %v, want %v", got, tt.expected)
 				return
 			}
-			t.Logf("CallStarFunc(%s) = %v, %v", tt.callName, got, err)
+			t.Logf("CallStarFunc(%s) = (%v, %v)", tt.callName, got, err)
 		})
 	}
 }
