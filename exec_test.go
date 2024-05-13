@@ -2,6 +2,7 @@ package starbox_test
 
 import (
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
 
@@ -406,6 +407,85 @@ func TestCallStarFunc(t *testing.T) {
 			callArgs: nil,
 			expected: "Aloha!",
 		},
+		{
+			name: "build twice",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				ss := []string{
+					hereDoc(`
+						def aloha():
+							return "Hello"
+					`),
+					hereDoc(`
+						def aloha():
+							return "Aloha!"
+					`),
+				}
+				for _, s := range ss {
+					_, err := box.Run(s)
+					if err != nil {
+						t.Errorf("unexpected error while building box: %v", err)
+					}
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: nil,
+			expected: "Aloha!",
+		},
+		{
+			name: "redirect go func",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				box.AddKeyValue("func", func() string {
+					return "Mahalo~"
+				})
+				_, err := box.Run(hereDoc(`
+					aloha = func
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "aloha",
+			callArgs: nil,
+			expected: "Mahalo~",
+		},
+		{
+			name: "params: in",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def calc(a, b):
+						return a * b
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "calc",
+			callArgs: []interface{}{0.5, 10},
+			expected: float64(5),
+		},
+		{
+			name: "params: out",
+			genBox: func() *starbox.Starbox {
+				box := starbox.New("test")
+				_, err := box.Run(hereDoc(`
+					def calc(a, b):
+						return b, a, 2
+				`))
+				if err != nil {
+					t.Errorf("unexpected error while building box: %v", err)
+				}
+				return box
+			},
+			callName: "calc",
+			callArgs: []interface{}{1, 0},
+			expected: []interface{}{int64(0), int64(1), int64(2)},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -415,8 +495,8 @@ func TestCallStarFunc(t *testing.T) {
 				t.Errorf("CallStarFunc() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if got != tt.expected {
-				t.Errorf("CallStarFunc() = %v, want %v", got, tt.expected)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("CallStarFunc() wrong value, got = %v (%T), want %v (%T)", got, got, tt.expected, tt.expected)
 				return
 			}
 			t.Logf("CallStarFunc(%s) = (%v, %v)", tt.callName, got, err)
