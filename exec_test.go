@@ -240,6 +240,15 @@ func TestCallStarFunc(t *testing.T) {
 		expected interface{}
 	}{
 		{
+			name: "no box",
+			genBox: func() *starbox.Starbox {
+				return nil
+			},
+			callName: "aloha",
+			callArgs: nil,
+			wantErr:  true,
+		},
+		{
 			name: "not load",
 			genBox: func() *starbox.Starbox {
 				box := starbox.New("test")

@@ -105,17 +105,16 @@ func (s *Starbox) RunInspectIf(script string, cond InspectCondFunc) (starlet.Str
 
 // CallStarlarkFunc executes a function defined in Starlark with arguments and returns the converted output.
 func (s *Starbox) CallStarlarkFunc(name string, args ...interface{}) (interface{}, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// get the machine
-	mac := s.mac
-	if mac == nil {
+	if s == nil || s.mac == nil {
 		return nil, errors.New("no starlet machine")
 	}
 
+	// lock it
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	// call it
-	return mac.Call(name, args...)
+	return s.mac.Call(name, args...)
 }
 
 // Reset creates an new Starlet machine and keeps the settings.
