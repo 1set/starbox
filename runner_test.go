@@ -138,6 +138,21 @@ func TestRunnerConfig_KeyValues(t *testing.T) {
 	}
 }
 
+func TestRunnerConfig_Clone(t *testing.T) {
+	cfg := starbox.New("aloha").CreateRunConfig().
+		KeyValue("a", 10).
+		KeyValue("b", 20).
+		KeyValue("c", 30).
+		Script("r = a + b + c")
+	cfg2 := cfg.Clone()
+	cfg2.KeyValue("a", 100).KeyValue("b", 200).KeyValue("c", 300)
+	// compare pointers
+	if cfg == cfg2 {
+		t.Error("expect different pointers, got same")
+		return
+	}
+}
+
 func TestRunnerConfig_RunWithName(t *testing.T) {
 	var sb strings.Builder
 	b := starbox.New("test")
