@@ -63,6 +63,12 @@ func (s *Starbox) CreateRunConfig() *RunnerConfig {
 	return &RunnerConfig{box: s}
 }
 
+// Clone creates a new RunnerConfig instance from the current one.
+func (c *RunnerConfig) Clone() *RunnerConfig {
+	n := *c
+	return &n
+}
+
 // FileName sets the script file name for the execution.
 func (c *RunnerConfig) FileName(name string) *RunnerConfig {
 	n := *c
