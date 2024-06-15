@@ -50,6 +50,7 @@ func (s *Starbox) extractModLoaders() (preMods starlet.ModuleLoaderList, lazyMod
 	return sp, sl, sn, err
 }
 
+// extractStarletModules extracts starlet builtin module loaders from the given module set and additional module names.
 func extractStarletModules(setName ModuleSetName, nameMods []string) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
 	// get starlet modules by set name
 	if modNames, err = getModuleSet(setName); err != nil {

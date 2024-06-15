@@ -2,6 +2,7 @@ package starbox
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 
 	"go.starlark.net/starlark"
@@ -92,6 +93,105 @@ func TestCollectiveMemory(t *testing.T) {
 	if ev := starlark.String("Aloha!"); av != ev || !ok {
 		t.Errorf("b2: expect w=%v, got %v", ev, av)
 		return
+	}
+}
+
+func TestIntersectStrings(t *testing.T) {
+	tests := []struct {
+		name     string
+		a        []string
+		b        []string
+		expected []string
+	}{
+		{
+			name:     "both nil",
+			a:        nil,
+			b:        nil,
+			expected: []string{},
+		},
+		{
+			name:     "a nil, b empty",
+			a:        nil,
+			b:        []string{},
+			expected: []string{},
+		},
+		{
+			name:     "a empty, b nil",
+			a:        []string{},
+			b:        nil,
+			expected: []string{},
+		},
+		{
+			name:     "both empty",
+			a:        []string{},
+			b:        []string{},
+			expected: []string{},
+		},
+		{
+			name:     "no intersection",
+			a:        []string{"a", "b", "c"},
+			b:        []string{"d", "e", "f"},
+			expected: []string{},
+		},
+		{
+			name:     "some intersection",
+			a:        []string{"a", "b", "c"},
+			b:        []string{"c", "d", "b"},
+			expected: []string{"b", "c"},
+		},
+		{
+			name:     "complete intersection",
+			a:        []string{"a", "b", "c"},
+			b:        []string{"b", "c", "a"},
+			expected: []string{"a", "b", "c"},
+		},
+		{
+			name:     "duplicates in a",
+			a:        []string{"a", "b", "b", "c"},
+			b:        []string{"b", "c", "d"},
+			expected: []string{"b", "c"},
+		},
+		{
+			name:     "duplicates in b",
+			a:        []string{"a", "b", "c"},
+			b:        []string{"b", "b", "c", "d"},
+			expected: []string{"b", "c"},
+		},
+		{
+			name:     "duplicates in both",
+			a:        []string{"a", "b", "b", "c", "c"},
+			b:        []string{"b", "d", "b", "c", "c"},
+			expected: []string{"b", "c"},
+		},
+		{
+			name:     "case sensitivity",
+			a:        []string{"a", "B", "c"},
+			b:        []string{"A", "b", "C"},
+			expected: []string{},
+		},
+		{
+			name:     "intersection with empty string",
+			a:        []string{"", "a", "b"},
+			b:        []string{"", "b", "c"},
+			expected: []string{"", "b"},
+		},
+		{
+			name:     "intersection with special characters",
+			a:        []string{"!", "@", "#", "a", "b"},
+			b:        []string{"#", "$", "%", "b", "c"},
+			expected: []string{"#", "b"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := intersectStrings(tc.a, tc.b)
+			sort.Strings(result)
+			sort.Strings(tc.expected)
+			if !reflect.DeepEqual(result, tc.expected) {
+				t.Errorf("Expected %v, but got %v", tc.expected, result)
+			}
+		})
 	}
 }
 
