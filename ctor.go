@@ -20,7 +20,9 @@ type StarlarkFunc func(thread *starlark.Thread, fn *starlark.Builtin, args starl
 // FuncMap is a map of Starlark functions.
 type FuncMap map[string]StarlarkFunc
 
-// DynamicModuleLoader is a function returns a module loader by name, or an error if the module is not found or failed to initialize to load.
+// DynamicModuleLoader is a function returns a module loader by name.
+// It returns an error if the module is not found or failed to initialize to load.
+// For non-exist module, it should return nil, nil or nil, error.
 type DynamicModuleLoader func(string) (starlet.ModuleLoader, error)
 
 // Starbox is a wrapper of starlet.Machine with additional features.
