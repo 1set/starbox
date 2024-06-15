@@ -159,7 +159,7 @@ func (s *Starbox) prepareEnv() (err error) {
 	s.mac.SetGlobals(s.globals)
 
 	// extract module loaders
-	preMods, lazyMods, modNames, err := s.extractModLoads()
+	preMods, lazyMods, modNames, err := s.extractModLoaders()
 	if err != nil {
 		return err
 	}
