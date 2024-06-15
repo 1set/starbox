@@ -196,7 +196,7 @@ func (s *Starbox) extractModLoads() (preMods starlet.ModuleLoaderList, lazyMods 
 	if modNames, err = getModuleSet(s.modSet); err != nil {
 		return nil, nil, nil, err
 	}
-	modNames = append(modNames, s.builtMods...)
+	modNames = append(modNames, s.namedMods...)
 	modNames = uniqueStrings(modNames)
 
 	// separate local module loaders from starlet module names

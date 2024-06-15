@@ -20,6 +20,9 @@ type StarlarkFunc func(thread *starlark.Thread, fn *starlark.Builtin, args starl
 // FuncMap is a map of Starlark functions.
 type FuncMap map[string]StarlarkFunc
 
+// DynamicModuleLoader is a function returns a module loader by name, or an error if the module is not found or failed to initialize to load.
+type DynamicModuleLoader func(string) (starlet.ModuleLoader, error)
+
 // Starbox is a wrapper of starlet.Machine with additional features.
 type Starbox struct {
 	mac        *starlet.Machine
@@ -31,7 +34,7 @@ type Starbox struct {
 	printFunc  starlet.PrintFunc
 	globals    starlet.StringAnyMap
 	modSet     ModuleSetName
-	builtMods  []string
+	namedMods  []string
 	loadMods   starlet.ModuleLoaderMap
 	scriptMods map[string]string
 	modFS      fs.FS
@@ -139,9 +142,6 @@ func (s *Starbox) SetScriptCache(cache starlet.ByteCache) {
 	}
 	s.mac.SetScriptCache(cache)
 }
-
-// DynamicModuleLoader is a function returns a module loader by name, or an error if the module is not found or failed to initialize to load.
-type DynamicModuleLoader func(string) (starlet.ModuleLoader, error)
 
 // SetDynamicModuleLoader sets the dynamic module loader for preload and lazyload modules.
 // It panics if called after execution.
@@ -260,7 +260,12 @@ func (s *Starbox) AddNamedModules(moduleNames ...string) {
 	if s.hasExec {
 		log.DPanic("cannot add named modules after execution")
 	}
-	s.builtMods = append(s.builtMods, moduleNames...)
+	s.namedMods = append(s.namedMods, moduleNames...)
+}
+
+// AddModulesByName is an alias of AddNamedModules().
+func (s *Starbox) AddModulesByName(moduleNames ...string) {
+	s.AddNamedModules(moduleNames...)
 }
 
 // AddModuleLoader adds a custom module loader to the preload and lazyload registry.
