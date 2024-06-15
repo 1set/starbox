@@ -45,31 +45,30 @@ func getModuleSet(modSet ModuleSetName) ([]string, error) {
 
 func (s *Starbox) extractModLoaders() (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
 	// extract starlet builtin module loaders
-	sp, sl, sn, err := extractStarletModules(s.modSet, s.namedMods)
+	starPre, starLazy, starName, err := extractStarletModules(s.modSet, s.namedMods)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	// extract custom module loaders
-	cp, cl, cn := extractLocalModules(s.loadMods, stringsMapSet(sn))
+	cusPre, cusLazy, cusName := extractLocalModules(s.loadMods, stringsMapSet(starName))
 
 	// extract dynamic module loaders
-	existMods := stringsMapSet(sn, cn)
-	dp, dl, dn, err := extractDynamicModules(s.dynMods, s.namedMods, existMods)
+	dynPre, dynLazy, dynName, err := extractDynamicModules(s.dynMods, s.namedMods, stringsMapSet(starName, cusName))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	// merge all module loaders
-	preMods = make(starlet.ModuleLoaderList, 0, len(sp)+len(cp)+len(dp))
-	for _, mods := range []starlet.ModuleLoaderList{sp, cp, dp} {
+	preMods = make(starlet.ModuleLoaderList, 0, len(starPre)+len(cusPre)+len(dynPre))
+	for _, mods := range []starlet.ModuleLoaderList{starPre, cusPre, dynPre} {
 		preMods = append(preMods, mods...)
 	}
-	lazyMods = make(starlet.ModuleLoaderMap, len(sl)+len(cl)+len(dl))
-	for _, mods := range []starlet.ModuleLoaderMap{sl, cl, dl} {
+	lazyMods = make(starlet.ModuleLoaderMap, len(starLazy)+len(cusLazy)+len(dynLazy))
+	for _, mods := range []starlet.ModuleLoaderMap{starLazy, cusLazy, dynLazy} {
 		lazyMods.Merge(mods)
 	}
-	nameSet := stringsMapSet(sn, cn, dn)
+	nameSet := stringsMapSet(starName, cusName, dynName)
 	modNames = mapSetStrings(nameSet)
 
 	// all done
