@@ -51,7 +51,7 @@ func (s *Starbox) extractModLoaders() (preMods starlet.ModuleLoaderList, lazyMod
 	}
 
 	// extract custom module loaders
-	cusPre, cusLazy, cusName := extractLocalModules(s.loadMods, stringsMapSet(starName))
+	cusPre, cusLazy, cusName := extractLocalModules(s.loadMods)
 
 	// extract dynamic module loaders
 	dynPre, dynLazy, dynName, err := extractDynamicModules(s.dynMods, s.namedMods, stringsMapSet(starName, cusName))
@@ -98,26 +98,20 @@ func extractStarletModules(setName ModuleSetName, nameMods []string) (preMods st
 	return
 }
 
-// extractLocalModules extracts custom module loaders and ignores loaded starlet builtin modules.
-func extractLocalModules(loadMods starlet.ModuleLoaderMap, existMods map[string]struct{}) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string) {
-	// separate custom module loaders from starlet module names
-	// i.e. ignore conflicts with starlet builtin modules
-	for name := range loadMods {
-		if _, ok := existMods[name]; !ok {
-			modNames = append(modNames, name)
-		}
+// extractLocalModules extracts custom module loaders.
+func extractLocalModules(loadMods starlet.ModuleLoaderMap) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string) {
+	// no custom module loaders
+	if len(loadMods) == 0 {
+		return
 	}
 
-	// convert custom module names to module loaders
-	if len(modNames) > 0 {
-		preMods = make(starlet.ModuleLoaderList, 0, len(modNames))
-		lazyMods = make(starlet.ModuleLoaderMap, len(modNames))
-		for _, name := range modNames {
-			if loader, ok := loadMods[name]; ok {
-				preMods = append(preMods, loader)
-				lazyMods[name] = loader
-			}
-		}
+	// extract all custom module loaders
+	preMods = make(starlet.ModuleLoaderList, 0, len(loadMods))
+	lazyMods = make(starlet.ModuleLoaderMap, len(loadMods))
+	for name, loader := range loadMods {
+		preMods = append(preMods, loader)
+		lazyMods[name] = loader
+		modNames = append(modNames, name)
 	}
 	return
 }
@@ -131,7 +125,7 @@ var (
 func extractDynamicModules(metaLoad DynamicModuleLoader, nameMods []string, existMods map[string]struct{}) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
 	// get dynamic module loaders by name
 	for _, name := range nameMods {
-		// skip loaded modules
+		// skip loaded modules, i.e. dynamic modules acts as a complement to static modules
 		if _, ok := existMods[name]; ok {
 			continue
 		}
