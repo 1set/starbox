@@ -136,6 +136,7 @@ func (s *Starbox) SetFS(hfs fs.FS) {
 }
 
 // SetScriptCache sets custom cache provider for script content.
+// nil cache provider will disable script cache.
 // It panics if called after execution.
 func (s *Starbox) SetScriptCache(cache starlet.ByteCache) {
 	s.mu.Lock()
@@ -144,7 +145,11 @@ func (s *Starbox) SetScriptCache(cache starlet.ByteCache) {
 	if s.hasExec {
 		log.DPanic("cannot set script cache after execution")
 	}
-	s.mac.SetScriptCache(cache)
+	if cache == nil {
+		s.mac.SetScriptCacheEnabled(false)
+	} else {
+		s.mac.SetScriptCache(cache)
+	}
 }
 
 // SetDynamicModuleLoader sets the dynamic module loader for preload and lazyload modules.
