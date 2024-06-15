@@ -36,6 +36,7 @@ type Starbox struct {
 	scriptMods map[string]string
 	modFS      fs.FS
 	modNames   []string
+	optMods    OptionalModuleLoader
 }
 
 // New creates a new Starbox instance with default settings.
@@ -125,6 +126,33 @@ func (s *Starbox) SetFS(hfs fs.FS) {
 		log.DPanic("cannot set filesystem after execution")
 	}
 	s.modFS = hfs
+}
+
+// SetScriptCache sets custom cache provider for script content.
+// It panics if called after execution.
+func (s *Starbox) SetScriptCache(cache starlet.ByteCache) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.hasExec {
+		log.DPanic("cannot set script cache after execution")
+	}
+	s.mac.SetScriptCache(cache)
+}
+
+// OptionalModuleLoader is a function returns a module loader by name, or an error if the module is not found or failed to initialize to load.
+type OptionalModuleLoader func(string) (starlet.ModuleLoader, error)
+
+// SetOptionalModuleLoader sets the optional module loader for preload and lazyload modules.
+// It panics if called after execution.
+func (s *Starbox) SetOptionalModuleLoader(loader OptionalModuleLoader) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.hasExec {
+		log.DPanic("cannot set optional module loader after execution")
+	}
+	s.optMods = loader
 }
 
 // SetModuleSet sets the module set to be loaded before execution.
@@ -222,7 +250,7 @@ func (s *Starbox) AddBuiltin(name string, starFunc StarlarkFunc) {
 	s.globals[name] = sb
 }
 
-// AddNamedModules adds builtin modules by name to the preload and lazyload registry.
+// AddNamedModules adds builtin and custom modules by name to the preload and lazyload registry.
 // It will not load the modules until the first run.
 // It panics if called after execution.
 func (s *Starbox) AddNamedModules(moduleNames ...string) {

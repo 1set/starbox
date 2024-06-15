@@ -246,3 +246,6 @@ func (s *Starbox) extractModLoads() (preMods starlet.ModuleLoaderList, lazyMods 
 	// result
 	return preMods, lazyMods, modNames, nil
 }
+
+//func (s *Starbox) extractFullModLoads() (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
+//}
