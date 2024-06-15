@@ -41,3 +41,35 @@ func getModuleSet(modSet ModuleSetName) ([]string, error) {
 	}
 	return nil, fmt.Errorf("unknown module set: %s", modSet)
 }
+
+func (s *Starbox) extractModLoaders() (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
+	// extract starlet builtin module loaders
+	sp, sl, sn, err := extractStarletModules(s.modSet, s.namedMods)
+
+	// TODO: undone
+	return sp, sl, sn, err
+}
+
+func extractStarletModules(setName ModuleSetName, nameMods []string) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
+	// get starlet modules by set name
+	if modNames, err = getModuleSet(setName); err != nil {
+		return nil, nil, nil, err
+	}
+
+	// append additional starlet module names
+	addNames := intersectStrings(fullModuleNames, nameMods)
+	modNames = appendUniques(modNames, addNames...)
+
+	// convert starlet builtin module names to module loaders
+	if len(modNames) > 0 {
+		if preMods, err = starlet.MakeBuiltinModuleLoaderList(modNames...); err != nil {
+			return nil, nil, nil, err
+		}
+		if lazyMods, err = starlet.MakeBuiltinModuleLoaderMap(modNames...); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	// done
+	return
+}

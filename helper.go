@@ -65,6 +65,29 @@ func eprintln(a ...interface{}) (n int, err error) {
 	return fmt.Fprintln(os.Stderr, a...)
 }
 
+// intersectStrings returns a new slice of strings with common elements from the given slices.
+func intersectStrings(a, b []string) []string {
+	// create a map to track strings in the first slice
+	seen := make(map[string]struct{})
+	for _, s := range a {
+		seen[s] = struct{}{}
+	}
+	// create a map to track strings in both slices
+	intersect := make(map[string]struct{})
+	for _, s := range b {
+		if _, ok := seen[s]; ok {
+			intersect[s] = struct{}{}
+		}
+	}
+	// convert the map to a slice
+	result := make([]string, 0, len(intersect))
+	for s := range intersect {
+		result = append(result, s)
+	}
+	sort.Strings(result)
+	return result
+}
+
 // uniqueStrings returns a new slice of strings with duplicates removed and sorted.
 func uniqueStrings(ss []string) []string {
 	if len(ss) < 2 {
