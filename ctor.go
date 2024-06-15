@@ -36,7 +36,7 @@ type Starbox struct {
 	scriptMods map[string]string
 	modFS      fs.FS
 	modNames   []string
-	optMods    OptionalModuleLoader
+	dynMods    DynamicModuleLoader
 }
 
 // New creates a new Starbox instance with default settings.
@@ -140,19 +140,19 @@ func (s *Starbox) SetScriptCache(cache starlet.ByteCache) {
 	s.mac.SetScriptCache(cache)
 }
 
-// OptionalModuleLoader is a function returns a module loader by name, or an error if the module is not found or failed to initialize to load.
-type OptionalModuleLoader func(string) (starlet.ModuleLoader, error)
+// DynamicModuleLoader is a function returns a module loader by name, or an error if the module is not found or failed to initialize to load.
+type DynamicModuleLoader func(string) (starlet.ModuleLoader, error)
 
-// SetOptionalModuleLoader sets the optional module loader for preload and lazyload modules.
+// SetDynamicModuleLoader sets the dynamic module loader for preload and lazyload modules.
 // It panics if called after execution.
-func (s *Starbox) SetOptionalModuleLoader(loader OptionalModuleLoader) {
+func (s *Starbox) SetDynamicModuleLoader(loader DynamicModuleLoader) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.hasExec {
-		log.DPanic("cannot set optional module loader after execution")
+		log.DPanic("cannot set dynamic module loader after execution")
 	}
-	s.optMods = loader
+	s.dynMods = loader
 }
 
 // SetModuleSet sets the module set to be loaded before execution.
