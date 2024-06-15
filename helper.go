@@ -76,7 +76,7 @@ func stringsMapSet(ss ...[]string) map[string]struct{} {
 	return m
 }
 
-// mapSetStrings returns a new slice of strings with keys from the given map.
+// mapSetStrings returns a new slice of sorted strings with keys from the given map[string]struct{}.
 func mapSetStrings(m map[string]struct{}) []string {
 	ss := make([]string, 0, len(m))
 	for s := range m {
