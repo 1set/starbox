@@ -21,7 +21,8 @@ type StarlarkFunc func(thread *starlark.Thread, fn *starlark.Builtin, args starl
 type FuncMap map[string]StarlarkFunc
 
 // DynamicModuleLoader is a function type that takes a module name as input and returns a corresponding module loader.
-// It is invoked before execution to dynamically load modules as needed.
+// It is invoked before execution to dynamically load modules as needed, and serves as a complement to Starlet's built-in modules and custom-added modules.
+// For given module names, if the module is not a built-in module or a custom-added module, this function is called to look it up.
 // If the module is not found or fails to initialize, an error is returned.
 // For non-existent modules, it should return (nil, nil) or (nil, error).
 type DynamicModuleLoader func(string) (starlet.ModuleLoader, error)

@@ -123,6 +123,10 @@ var (
 
 // extractDynamicModules extracts dynamic module loaders by module names.
 func extractDynamicModules(metaLoad DynamicModuleLoader, nameMods []string, existMods map[string]struct{}) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
+	// initialize
+	preMods = make(starlet.ModuleLoaderList, 0, len(nameMods))
+	lazyMods = make(starlet.ModuleLoaderMap, len(nameMods))
+
 	// get dynamic module loaders by name
 	for _, name := range nameMods {
 		// skip loaded modules, i.e. dynamic modules acts as a complement to static modules
