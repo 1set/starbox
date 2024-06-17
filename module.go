@@ -51,7 +51,7 @@ func (s *Starbox) extractModLoaders() (preMods starlet.ModuleLoaderList, lazyMod
 	}
 
 	// extract custom module loaders
-	cusPre, cusLazy, cusName := extractLocalModules(s.loadMods)
+	cusPre, cusLazy, cusName := extractLocalModules(s.loadMods, stringsMapSet(starName))
 
 	// extract dynamic module loaders
 	dynPre, dynLazy, dynName, err := extractDynamicModules(s.dynMods, s.namedMods, stringsMapSet(starName, cusName))
@@ -99,7 +99,7 @@ func extractStarletModules(setName ModuleSetName, nameMods []string) (preMods st
 }
 
 // extractLocalModules extracts custom module loaders.
-func extractLocalModules(loadMods starlet.ModuleLoaderMap) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string) {
+func extractLocalModules(loadMods starlet.ModuleLoaderMap, existMods map[string]struct{}) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string) {
 	// no custom module loaders
 	if len(loadMods) == 0 {
 		return
@@ -109,6 +109,10 @@ func extractLocalModules(loadMods starlet.ModuleLoaderMap) (preMods starlet.Modu
 	preMods = make(starlet.ModuleLoaderList, 0, len(loadMods))
 	lazyMods = make(starlet.ModuleLoaderMap, len(loadMods))
 	for name, loader := range loadMods {
+		// skip loaded modules, i.e. avoid conflicts with starlet builtin modules
+		if _, ok := existMods[name]; ok {
+			continue
+		}
 		preMods = append(preMods, loader)
 		lazyMods[name] = loader
 		modNames = append(modNames, name)
