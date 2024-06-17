@@ -929,6 +929,8 @@ func TestDynamicModuleLoader(t *testing.T) {
 				}), nil
 			} else if s == "mistake" {
 				return nil, errors.New("a mistake")
+			} else if s == "empty" {
+				return nil, nil
 			}
 			return nil, errors.New("kaumaha")
 		})
@@ -1013,7 +1015,15 @@ func TestDynamicModuleLoader(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			// 9. load dynamic module with error
+			// 9. another missing module
+			builder: func(b *starbox.Starbox) {
+				b.AddModulesByName("aloha", "empty")
+			},
+			script:  `print(__modules__)`,
+			wantErr: true,
+		},
+		{
+			// 10. load dynamic module with error
 			builder: func(b *starbox.Starbox) {
 				b.AddModulesByName("mistake")
 			},
@@ -1021,7 +1031,7 @@ func TestDynamicModuleLoader(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			// 10. disable dynamic module loader
+			// 11. disable dynamic module loader
 			builder: func(b *starbox.Starbox) {
 				b.AddModulesByName("aloha", "atom")
 				b.SetDynamicModuleLoader(nil)
