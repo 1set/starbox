@@ -917,7 +917,7 @@ func TestDynamicModuleLoader(t *testing.T) {
 		}))
 		b.SetDynamicModuleLoader(func(s string) (starlet.ModuleLoader, error) {
 			if s == "aloha" || s == "atom" {
-				return dataconv.WrapModuleData("less", starlark.StringDict{
+				return dataconv.WrapModuleData("minus", starlark.StringDict{
 					"num": starlark.MakeInt(500),
 					"minus": starlark.NewBuiltin("minus", func(thread *starlark.Thread, bt *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 						var a, b int64
@@ -938,7 +938,7 @@ func TestDynamicModuleLoader(t *testing.T) {
 		want    int64
 	}{
 		{
-			// add named module from starlet
+			// 0. add named module from starlet
 			builder: func(b *starbox.Starbox) {
 				b.AddNamedModules("atom")
 			},
@@ -946,7 +946,7 @@ func TestDynamicModuleLoader(t *testing.T) {
 			want:   1,
 		},
 		{
-			// duplicate named module from dynamic, no affect
+			// 1.duplicate named module from dynamic, no affect -- check load starlet
 			builder: func(b *starbox.Starbox) {
 				b.AddNamedModules("atom")
 			},
@@ -954,7 +954,7 @@ func TestDynamicModuleLoader(t *testing.T) {
 			want:   1,
 		},
 		{
-			// conflict named module from custom, override starlet
+			// 2. conflict named module from custom, override starlet -- check load starlet
 			builder: func(b *starbox.Starbox) {
 				b.AddNamedModules("math")
 			},
@@ -962,7 +962,7 @@ func TestDynamicModuleLoader(t *testing.T) {
 			want:   1,
 		},
 		{
-			// duplicate named module from starlet or custom, no affect
+			// 3. duplicate named module from starlet or custom, no affect
 			builder: func(b *starbox.Starbox) {
 				b.AddNamedModules("math", "more")
 			},
@@ -970,18 +970,27 @@ func TestDynamicModuleLoader(t *testing.T) {
 			want:   1,
 		},
 		{
-			// add named module from dynamic
+			// 4. duplicate named module from starlet or custom, no affect
 			builder: func(b *starbox.Starbox) {
-				b.AddNamedModules("aloha")
+				b.AddNamedModules("more")
 			},
-			script: `print(__modules__); c = int("|".join(__modules__) == 'aloha|math|more')`,
-			want:   1,
+			script: `c = less.num`,
+			want:   200,
 		},
 		{
+			// 5. add named module from dynamic
 			builder: func(b *starbox.Starbox) {
 				b.AddNamedModules("aloha")
 			},
-			script: `print(dir(aloha)); c = int("|".join(dir(aloha)) == 'minus|num')`,
+			script: `c = minus.num`,
+			want:   500,
+		},
+		{
+			// 6.
+			builder: func(b *starbox.Starbox) {
+				b.AddNamedModules("aloha", "atom")
+			},
+			script: `print(__modules__); c = int("|".join(__modules__) == 'aloha|atom|math|more')`,
 			want:   1,
 		},
 	}
