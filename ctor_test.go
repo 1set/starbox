@@ -798,3 +798,88 @@ func TestAddNamedModuleAndModuleScript(t *testing.T) {
 		return
 	}
 }
+
+// TestSetScriptCache tests the following:
+// 1. Create a new Starbox instance, and cache is enabled by default.
+// 2. Local script from the filesystem.
+// 3. Run a script that uses the local script.
+// 4. Modify the local script.
+// 5. Run the script again, check if the output is the same.
+// 6. Disable the cache.
+// 7. Run the script again, check if the output is different.
+// 8. Enable the cache with custom provider.
+// 9. Run the script again, check if the output is the same.
+func TestSetScriptCache(t *testing.T) {
+	// scripts for virtual filesystem
+	s1 := hereDoc(`
+		a = 10
+		b = 20
+		c = a + b
+	`)
+	s2 := hereDoc(`
+		a = 100
+		b = 200
+		c = a + b
+	`)
+	mn := `test.star`
+
+	// run a script that uses the local script
+	testRun := func(b *starbox.Starbox, cas int, es int64) {
+		out, err := b.CreateRunConfig().FileName(mn).Execute()
+		if err != nil {
+			t.Errorf("[%d] fail to run: %v", cas, err)
+			return
+		}
+		if out["c"] != es {
+			t.Errorf("[%d] expect %d, got %v", cas, es, out["c"])
+			return
+		}
+	}
+
+	{
+		// create a new Starbox instance with the default cache
+		b := starbox.New("test")
+		fs := memfs.New()
+		b.SetFS(fs)
+
+		// run the script with the default cache
+		fs.WriteFile(mn, []byte(s1), 0644)
+		testRun(b, 1, 30)
+
+		// modify file content, and run the script again -- dirty cache
+		fs.WriteFile(mn, []byte(s2), 0644)
+		testRun(b, 2, 30)
+	}
+
+	{
+		// create a new Starbox instance and then disable cache
+		b := starbox.New("test")
+		fs := memfs.New()
+		b.SetFS(fs)
+		b.SetScriptCache(nil) // disable cache
+
+		// run the script without cache
+		fs.WriteFile(mn, []byte(s1), 0644)
+		testRun(b, 3, 30)
+
+		// modify file content, and run the script again -- no cache
+		fs.WriteFile(mn, []byte(s2), 0644)
+		testRun(b, 4, 300)
+	}
+
+	{
+		// create a new Starbox instance
+		b := starbox.New("test")
+		fs := memfs.New()
+		b.SetFS(fs)
+		b.SetScriptCache(starlet.NewMemoryCache()) // enable cache with custom provider
+
+		// run the script with the custom cache
+		fs.WriteFile(mn, []byte(s1), 0644)
+		testRun(b, 5, 30)
+
+		// modify file content, and run the script again -- cache
+		fs.WriteFile(mn, []byte(s2), 0644)
+		testRun(b, 6, 30)
+	}
+}
