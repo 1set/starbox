@@ -702,6 +702,18 @@ func TestSetAddRunPanic(t *testing.T) {
 				b.AttachMemory("test2", m)
 			},
 		},
+		{
+			name: "set cache provider",
+			fn: func(b *starbox.Starbox) {
+				b.SetScriptCache(nil)
+			},
+		},
+		{
+			name: "set module provider",
+			fn: func(b *starbox.Starbox) {
+				b.SetDynamicModuleLoader(nil)
+			},
+		},
 	}
 
 	for _, tt := range tests {
