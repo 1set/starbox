@@ -26,8 +26,8 @@
 //   - AddModulesByName(moduleNames ...string): Alias for AddNamedModules.
 //
 // Modules are loaded in the following order of priority before execution:
-//   1. Preloaded modules from predefined sets and named modules.
-//   2. Custom modules added by users, overriding any built-in modules with the same name.
+//   1. Preloaded Starlet modules from predefined sets and named Starlet modules.
+//   2. Custom modules added by users, ignoring modules with the same names as preloaded Starlet modules.
 //   3. Dynamically loaded modules based on their names just before execution.
 //   4. If a module name is not found in any of the preloaded, custom, or dynamic modules, an error is returned.
 package starbox
