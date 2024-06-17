@@ -927,6 +927,8 @@ func TestDynamicModuleLoader(t *testing.T) {
 						return starlark.MakeInt64(a + b - 2000), nil
 					}),
 				}), nil
+			} else if s == "mistake" {
+				return nil, errors.New("a mistake")
 			}
 			return nil, errors.New("kaumaha")
 		})
@@ -936,6 +938,7 @@ func TestDynamicModuleLoader(t *testing.T) {
 		builder func(*starbox.Starbox)
 		script  string
 		want    int64
+		wantErr bool
 	}{
 		{
 			// 0. add named module from starlet
@@ -986,12 +989,36 @@ func TestDynamicModuleLoader(t *testing.T) {
 			want:   500,
 		},
 		{
-			// 6.
+			// 6. add named module from dynamic, and also from starlet
 			builder: func(b *starbox.Starbox) {
 				b.AddNamedModules("aloha", "atom")
 			},
 			script: `print(__modules__); c = int("|".join(__modules__) == 'aloha|atom|math|more')`,
 			want:   1,
+		},
+		{
+			// 7. use alias
+			builder: func(b *starbox.Starbox) {
+				b.AddModulesByName("aloha", "atom")
+			},
+			script: `print(__modules__); c = int("|".join(__modules__) == 'aloha|atom|math|more')`,
+			want:   1,
+		},
+		{
+			// 8. missing module
+			builder: func(b *starbox.Starbox) {
+				b.AddModulesByName("aloha", "mahalo")
+			},
+			script:  `print(__modules__)`,
+			wantErr: true,
+		},
+		{
+			// 9. load dynamic module with error
+			builder: func(b *starbox.Starbox) {
+				b.AddModulesByName("mistake")
+			},
+			script:  `print(__modules__)`,
+			wantErr: true,
 		},
 	}
 	for i, tt := range tests {
@@ -1006,7 +1033,12 @@ func TestDynamicModuleLoader(t *testing.T) {
 			// run script
 			out, err := b.Run(hereDoc(tt.script))
 			if err != nil {
-				t.Error(err)
+				if !tt.wantErr {
+					t.Errorf("expect nil, got error: %v", err)
+				}
+				return
+			} else if tt.wantErr {
+				t.Error("expect error, got nil")
 				return
 			}
 
