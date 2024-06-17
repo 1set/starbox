@@ -1020,6 +1020,15 @@ func TestDynamicModuleLoader(t *testing.T) {
 			script:  `print(__modules__)`,
 			wantErr: true,
 		},
+		{
+			// 10. disable dynamic module loader
+			builder: func(b *starbox.Starbox) {
+				b.AddModulesByName("aloha", "atom")
+				b.SetDynamicModuleLoader(nil)
+			},
+			script:  `print(__modules__)`,
+			wantErr: true,
+		},
 	}
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
