@@ -65,6 +65,42 @@ func eprintln(a ...interface{}) (n int, err error) {
 	return fmt.Fprintln(os.Stderr, a...)
 }
 
+// stringsMapSet returns a new map[string]struct{} with the given strings as keys working as a set.
+func stringsMapSet(ss ...[]string) map[string]struct{} {
+	m := make(map[string]struct{})
+	for _, s := range ss {
+		for _, v := range s {
+			m[v] = struct{}{}
+		}
+	}
+	return m
+}
+
+// mapSetStrings returns a new slice of sorted strings with keys from the given map[string]struct{}.
+func mapSetStrings(m map[string]struct{}) []string {
+	ss := make([]string, 0, len(m))
+	for s := range m {
+		ss = append(ss, s)
+	}
+	sort.Strings(ss)
+	return ss
+}
+
+// intersectStrings returns a new slice of strings with common elements from the given slices.
+func intersectStrings(a, b []string) []string {
+	// create a map to track strings in the first slice
+	seen := stringsMapSet(a)
+	// create a map to track strings in both slices
+	intersect := make(map[string]struct{})
+	for _, s := range b {
+		if _, ok := seen[s]; ok {
+			intersect[s] = struct{}{}
+		}
+	}
+	// convert the map to a slice
+	return mapSetStrings(intersect)
+}
+
 // uniqueStrings returns a new slice of strings with duplicates removed and sorted.
 func uniqueStrings(ss []string) []string {
 	if len(ss) < 2 {

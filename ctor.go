@@ -20,6 +20,13 @@ type StarlarkFunc func(thread *starlark.Thread, fn *starlark.Builtin, args starl
 // FuncMap is a map of Starlark functions.
 type FuncMap map[string]StarlarkFunc
 
+// DynamicModuleLoader is a function type that takes a module name as input and returns a corresponding module loader.
+// It is invoked before execution to dynamically load modules as needed, and serves as a complement to Starlet's built-in modules and custom-added modules.
+// For given module names, if the module is not a built-in module or a custom-added module, this function is called to look it up.
+// If the module is not found or fails to initialize, an error is returned.
+// For non-existent modules, it should return (nil, nil) or (nil, error).
+type DynamicModuleLoader func(string) (starlet.ModuleLoader, error)
+
 // Starbox is a wrapper of starlet.Machine with additional features.
 type Starbox struct {
 	mac        *starlet.Machine
@@ -31,11 +38,12 @@ type Starbox struct {
 	printFunc  starlet.PrintFunc
 	globals    starlet.StringAnyMap
 	modSet     ModuleSetName
-	builtMods  []string
+	namedMods  []string
 	loadMods   starlet.ModuleLoaderMap
 	scriptMods map[string]string
 	modFS      fs.FS
 	modNames   []string
+	dynMods    DynamicModuleLoader
 }
 
 // New creates a new Starbox instance with default settings.
@@ -125,6 +133,35 @@ func (s *Starbox) SetFS(hfs fs.FS) {
 		log.DPanic("cannot set filesystem after execution")
 	}
 	s.modFS = hfs
+}
+
+// SetScriptCache sets custom cache provider for script content.
+// nil cache provider will disable script cache.
+// It panics if called after execution.
+func (s *Starbox) SetScriptCache(cache starlet.ByteCache) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.hasExec {
+		log.DPanic("cannot set script cache after execution")
+	}
+	if cache == nil {
+		s.mac.SetScriptCacheEnabled(false)
+	} else {
+		s.mac.SetScriptCache(cache)
+	}
+}
+
+// SetDynamicModuleLoader sets the dynamic module loader for preload and lazyload modules.
+// It panics if called after execution.
+func (s *Starbox) SetDynamicModuleLoader(loader DynamicModuleLoader) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.hasExec {
+		log.DPanic("cannot set dynamic module loader after execution")
+	}
+	s.dynMods = loader
 }
 
 // SetModuleSet sets the module set to be loaded before execution.
@@ -222,7 +259,7 @@ func (s *Starbox) AddBuiltin(name string, starFunc StarlarkFunc) {
 	s.globals[name] = sb
 }
 
-// AddNamedModules adds builtin modules by name to the preload and lazyload registry.
+// AddNamedModules adds builtin and custom modules by name to the preload and lazyload registry.
 // It will not load the modules until the first run.
 // It panics if called after execution.
 func (s *Starbox) AddNamedModules(moduleNames ...string) {
@@ -232,7 +269,12 @@ func (s *Starbox) AddNamedModules(moduleNames ...string) {
 	if s.hasExec {
 		log.DPanic("cannot add named modules after execution")
 	}
-	s.builtMods = append(s.builtMods, moduleNames...)
+	s.namedMods = append(s.namedMods, moduleNames...)
+}
+
+// AddModulesByName is an alias of AddNamedModules().
+func (s *Starbox) AddModulesByName(moduleNames ...string) {
+	s.AddNamedModules(moduleNames...)
 }
 
 // AddModuleLoader adds a custom module loader to the preload and lazyload registry.

@@ -2,6 +2,7 @@ package starbox_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -796,5 +797,280 @@ func TestAddNamedModuleAndModuleScript(t *testing.T) {
 	if em := []string{"base64", "csv", "runtime", "runtime.star"}; !reflect.DeepEqual(em, b.GetModuleNames()) {
 		t.Errorf("expect %v, got %v", em, b.GetModuleNames())
 		return
+	}
+}
+
+// TestSetScriptCache tests the following:
+// 1. Create a new Starbox instance, and cache is enabled by default.
+// 2. Local script from the filesystem.
+// 3. Run a script that uses the local script.
+// 4. Modify the local script.
+// 5. Run the script again, check if the output is the same.
+// 6. Disable the cache.
+// 7. Run the script again, check if the output is different.
+// 8. Enable the cache with custom provider.
+// 9. Run the script again, check if the output is the same.
+func TestSetScriptCache(t *testing.T) {
+	// scripts for virtual filesystem
+	s1 := hereDoc(`
+		a = 10
+		b = 20
+		c = a + b
+	`)
+	s2 := hereDoc(`
+		a = 100
+		b = 200
+		c = a + b
+	`)
+	mn := `test.star`
+
+	// run a script that uses the local script
+	testRun := func(b *starbox.Starbox, cas int, es int64) {
+		out, err := b.CreateRunConfig().FileName(mn).Execute()
+		if err != nil {
+			t.Errorf("[%d] fail to run: %v", cas, err)
+			return
+		}
+		if out["c"] != es {
+			t.Errorf("[%d] expect %d, got %v", cas, es, out["c"])
+			return
+		}
+	}
+
+	{
+		// create a new Starbox instance with the default cache
+		b := starbox.New("test")
+		fs := memfs.New()
+		b.SetFS(fs)
+
+		// run the script with the default cache
+		fs.WriteFile(mn, []byte(s1), 0644)
+		testRun(b, 1, 30)
+
+		// modify file content, and run the script again -- dirty cache
+		fs.WriteFile(mn, []byte(s2), 0644)
+		testRun(b, 2, 30)
+	}
+
+	{
+		// create a new Starbox instance and then disable cache
+		b := starbox.New("test")
+		fs := memfs.New()
+		b.SetFS(fs)
+		b.SetScriptCache(nil) // disable cache
+
+		// run the script without cache
+		fs.WriteFile(mn, []byte(s1), 0644)
+		testRun(b, 3, 30)
+
+		// modify file content, and run the script again -- no cache
+		fs.WriteFile(mn, []byte(s2), 0644)
+		testRun(b, 4, 300)
+	}
+
+	{
+		// create a new Starbox instance
+		b := starbox.New("test")
+		fs := memfs.New()
+		b.SetFS(fs)
+		b.SetScriptCache(starlet.NewMemoryCache()) // enable cache with custom provider
+
+		// run the script with the custom cache
+		fs.WriteFile(mn, []byte(s1), 0644)
+		testRun(b, 5, 30)
+
+		// modify file content, and run the script again -- cache
+		fs.WriteFile(mn, []byte(s2), 0644)
+		testRun(b, 6, 30)
+	}
+}
+
+// TestDynamicModuleLoader tests the following:
+// 1. Create a new Starbox instance.
+// 2. Add a module loader.
+// 3. Set dynamic module loader.
+// 4. Run a script that uses function from the module loader.
+// 5. Check the output to see if the module loader works.
+func TestDynamicModuleLoader(t *testing.T) {
+	buildBox := func(b *starbox.Starbox) {
+		b.AddModuleLoader("math", func() (starlark.StringDict, error) {
+			return starlark.StringDict{
+				"num": starlark.MakeInt(100),
+				"shift": starlark.NewBuiltin("shift", func(thread *starlark.Thread, bt *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+					var a, b int64
+					if err := starlark.UnpackArgs(bt.Name(), args, kwargs, "a", &a, "b", &b); err != nil {
+						return nil, err
+					}
+					return starlark.MakeInt64(a << b).Add(starlark.MakeInt(5)), nil
+				}),
+			}, nil
+		})
+		b.AddModuleLoader("more", dataconv.WrapModuleData("less", starlark.StringDict{
+			"num": starlark.MakeInt(200),
+			"plus": starlark.NewBuiltin("plus", func(thread *starlark.Thread, bt *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+				var a, b int64
+				if err := starlark.UnpackArgs(bt.Name(), args, kwargs, "a", &a, "b", &b); err != nil {
+					return nil, err
+				}
+				return starlark.MakeInt64(a + b + 1000), nil
+			}),
+		}))
+		b.SetDynamicModuleLoader(func(s string) (starlet.ModuleLoader, error) {
+			if s == "aloha" || s == "atom" {
+				return dataconv.WrapModuleData("minus", starlark.StringDict{
+					"num": starlark.MakeInt(500),
+					"minus": starlark.NewBuiltin("minus", func(thread *starlark.Thread, bt *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+						var a, b int64
+						if err := starlark.UnpackArgs(bt.Name(), args, kwargs, "a", &a, "b", &b); err != nil {
+							return nil, err
+						}
+						return starlark.MakeInt64(a + b - 2000), nil
+					}),
+				}), nil
+			} else if s == "mistake" {
+				return nil, errors.New("a mistake")
+			} else if s == "empty" {
+				return nil, nil
+			}
+			return nil, errors.New("kaumaha")
+		})
+	}
+
+	tests := []struct {
+		builder func(*starbox.Starbox)
+		script  string
+		want    int64
+		wantErr bool
+	}{
+		{
+			// 0. add named module from starlet
+			builder: func(b *starbox.Starbox) {
+				b.AddNamedModules("atom")
+			},
+			script: `print(__modules__); c = int("|".join(__modules__) == 'atom|math|more')`,
+			want:   1,
+		},
+		{
+			// 1.duplicate named module from dynamic, no affect -- check load starlet
+			builder: func(b *starbox.Starbox) {
+				b.AddNamedModules("atom")
+			},
+			script: `print(dir(atom)); c = int("|".join(dir(atom)) == 'new_float|new_int|new_string')`,
+			want:   1,
+		},
+		{
+			// 2. conflict named module from custom, override starlet -- check load starlet
+			builder: func(b *starbox.Starbox) {
+				b.AddNamedModules("math")
+			},
+			script: `print(dir(math)); c = int(len(dir(math)) > 2)`,
+			want:   1,
+		},
+		{
+			// 3. duplicate named module from starlet or custom, no affect
+			builder: func(b *starbox.Starbox) {
+				b.AddNamedModules("math", "more")
+			},
+			script: `print(__modules__); c = int("|".join(__modules__) == 'math|more')`,
+			want:   1,
+		},
+		{
+			// 4. duplicate named module from starlet or custom, no affect
+			builder: func(b *starbox.Starbox) {
+				b.AddNamedModules("more")
+			},
+			script: `c = less.num`,
+			want:   200,
+		},
+		{
+			// 5. add named module from dynamic
+			builder: func(b *starbox.Starbox) {
+				b.AddNamedModules("aloha")
+			},
+			script: `c = minus.num`,
+			want:   500,
+		},
+		{
+			// 6. add named module from dynamic, and also from starlet
+			builder: func(b *starbox.Starbox) {
+				b.AddNamedModules("aloha", "atom")
+			},
+			script: `print(__modules__); c = int("|".join(__modules__) == 'aloha|atom|math|more')`,
+			want:   1,
+		},
+		{
+			// 7. use alias
+			builder: func(b *starbox.Starbox) {
+				b.AddModulesByName("aloha", "atom")
+			},
+			script: `print(__modules__); c = int("|".join(__modules__) == 'aloha|atom|math|more')`,
+			want:   1,
+		},
+		{
+			// 8. missing module
+			builder: func(b *starbox.Starbox) {
+				b.AddModulesByName("aloha", "mahalo")
+			},
+			script:  `print(__modules__)`,
+			wantErr: true,
+		},
+		{
+			// 9. another missing module
+			builder: func(b *starbox.Starbox) {
+				b.AddModulesByName("aloha", "empty")
+			},
+			script:  `print(__modules__)`,
+			wantErr: true,
+		},
+		{
+			// 10. load dynamic module with error
+			builder: func(b *starbox.Starbox) {
+				b.AddModulesByName("mistake")
+			},
+			script:  `print(__modules__)`,
+			wantErr: true,
+		},
+		{
+			// 11. disable dynamic module loader
+			builder: func(b *starbox.Starbox) {
+				b.AddModulesByName("aloha", "atom")
+				b.SetDynamicModuleLoader(nil)
+			},
+			script:  `print(__modules__)`,
+			wantErr: true,
+		},
+	}
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			// build box
+			b := starbox.New(fmt.Sprintf("test_%d", i))
+			buildBox(b)
+			if build := tt.builder; build != nil {
+				build(b)
+			}
+
+			// run script
+			out, err := b.Run(hereDoc(tt.script))
+			if err != nil {
+				if !tt.wantErr {
+					t.Errorf("expect nil, got error: %v", err)
+				}
+				return
+			} else if tt.wantErr {
+				t.Error("expect error, got nil")
+				return
+			}
+
+			// check result
+			if out == nil {
+				t.Error("expect not nil, got nil")
+			}
+			if len(out) != 1 {
+				t.Errorf("expect 1, got %d", len(out))
+			}
+			if es := tt.want; out["c"] != es {
+				t.Errorf("expect %d, got %v", es, out["c"])
+			}
+		})
 	}
 }

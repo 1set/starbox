@@ -702,6 +702,18 @@ func TestSetAddRunPanic(t *testing.T) {
 				b.AttachMemory("test2", m)
 			},
 		},
+		{
+			name: "set cache provider",
+			fn: func(b *starbox.Starbox) {
+				b.SetScriptCache(nil)
+			},
+		},
+		{
+			name: "set module provider",
+			fn: func(b *starbox.Starbox) {
+				b.SetDynamicModuleLoader(nil)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1020,15 +1032,15 @@ func TestConflictModuleMemberLoader(t *testing.T) {
 	b.AddNamedModules(name)
 	b.AddModuleLoader(name, func() (starlark.StringDict, error) {
 		return starlark.StringDict{
-			"bin": starlark.MakeInt(1024),
+			"sum": starlark.MakeInt(1024),
 		}, nil
 	})
 	// check if the module is loaded and the member is overridden
-	out, err := b.Run(`res = sum([bin, 10])`)
+	out, err := b.Run(`res = length(bin(1024))`)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	if out["res"] != int64(1034) {
+	if out["res"] != int64(13) {
 		t.Errorf("unexpected output: %v", out)
 	}
 }
@@ -1066,11 +1078,11 @@ func TestConflictModuleStructLoader(t *testing.T) {
 		}, nil
 	})
 	// check if the module is loaded
-	out, err := b.Run(`res = base64.shift(10, 2) + base64.num + num; print(dir(base64))`)
+	out, err := b.Run(`res = len(base64.encode("123")); print(dir(base64))`)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	if out["res"] != int64(1145) {
+	if out["res"] != int64(4) {
 		t.Errorf("unexpected output: %v", out)
 	}
 }
