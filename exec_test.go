@@ -1,7 +1,6 @@
 package starbox_test
 
 import (
-	"errors"
 	"net/http"
 	"reflect"
 	"testing"
@@ -106,16 +105,35 @@ func TestRunFile(t *testing.T) {
 func TestRunFile_PrepareError(t *testing.T) {
 	// prepare file system
 	nm := "try.star"
-	s := `s = "hello world"; print(s)`
+	s := `s = "hello"`
 	fs := memfs.New()
 	fs.WriteFile(nm, []byte(s), 0644)
 
 	// setup starbox
 	b := starbox.New("test")
 	b.SetFS(fs)
-	b.AddModuleLoader("mine", func() (starlark.StringDict, error) {
-		return nil, errors.New("simple error")
-	})
+	b.AddNamedModules("missing")
+
+	// run and check
+	out, err := b.RunFile(nm)
+	if err == nil {
+		t.Error("expect error, got nil")
+	}
+	if len(out) != 0 {
+		t.Errorf("unexpected output: %v", out)
+	}
+}
+
+func TestRunFile_ScriptError(t *testing.T) {
+	// prepare file system
+	nm := "try.star"
+	s := `s = "hello`
+	fs := memfs.New()
+	fs.WriteFile(nm, []byte(s), 0644)
+
+	// setup starbox
+	b := starbox.New("test")
+	b.SetFS(fs)
 
 	// run and check
 	out, err := b.RunFile(nm)
