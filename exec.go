@@ -24,6 +24,22 @@ func (s *Starbox) Run(script string) (starlet.StringAnyMap, error) {
 	return s.mac.Run()
 }
 
+// RunFile executes a script file and returns the converted output.
+func (s *Starbox) RunFile(file string) (starlet.StringAnyMap, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// prepare environment
+	if err := s.prepareEnv(); err != nil {
+		return nil, err
+	}
+
+	// run
+	s.hasExec = true
+	s.execTimes++
+	return s.mac.RunFile(file, s.modFS, nil)
+}
+
 // RunTimeout executes a script and returns the converted output.
 func (s *Starbox) RunTimeout(script string, timeout time.Duration) (starlet.StringAnyMap, error) {
 	s.mu.Lock()
@@ -115,16 +131,6 @@ func (s *Starbox) CallStarlarkFunc(name string, args ...interface{}) (interface{
 
 	// call it
 	return s.mac.Call(name, args...)
-}
-
-// Reset creates an new Starlet machine and keeps the settings.
-func (s *Starbox) Reset() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	//s.mac.Reset()
-	s.mac = newStarMachine(s.name)
-	s.hasExec = false
 }
 
 func (s *Starbox) prepareScriptEnv(script string) (err error) {

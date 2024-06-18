@@ -826,7 +826,7 @@ func TestSetScriptCache(t *testing.T) {
 
 	// run a script that uses the local script
 	testRun := func(b *starbox.Starbox, cas int, es int64) {
-		out, err := b.CreateRunConfig().FileName(mn).Execute()
+		out, err := b.RunFile(mn)
 		if err != nil {
 			t.Errorf("[%d] fail to run: %v", cas, err)
 			return
