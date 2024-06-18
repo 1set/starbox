@@ -117,16 +117,6 @@ func (s *Starbox) CallStarlarkFunc(name string, args ...interface{}) (interface{
 	return s.mac.Call(name, args...)
 }
 
-// Reset creates an new Starlet machine and keeps the settings.
-func (s *Starbox) Reset() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	//s.mac.Reset()
-	s.mac = newStarMachine(s.name)
-	s.hasExec = false
-}
-
 func (s *Starbox) prepareScriptEnv(script string) (err error) {
 	// if it's not the first run, set the script content only
 	if s.hasExec {

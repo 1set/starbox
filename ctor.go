@@ -69,6 +69,16 @@ func (s *Starbox) String() string {
 	return fmt.Sprintf("🥡Box{name:%s,run:%d}", s.name, s.execTimes)
 }
 
+// Reset creates an new Starlet machine and keeps the settings.
+func (s *Starbox) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	//s.mac.Reset()
+	s.mac = newStarMachine(s.name)
+	s.hasExec = false
+}
+
 // GetMachine returns the underlying starlet.Machine instance.
 func (s *Starbox) GetMachine() *starlet.Machine {
 	s.mu.RLock()
