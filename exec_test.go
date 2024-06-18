@@ -1,6 +1,7 @@
 package starbox_test
 
 import (
+	"errors"
 	"net/http"
 	"reflect"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/1set/starbox"
 	"github.com/1set/starlet"
+	"github.com/psanford/memfs"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 	"go.uber.org/zap"
@@ -63,6 +65,65 @@ func TestEmptyRun(t *testing.T) {
 	}
 	if m := b.GetModuleNames(); len(m) != 0 {
 		t.Errorf("unexpected modules: %v", m)
+	}
+}
+
+func TestEmptyRunFile(t *testing.T) {
+	b := starbox.New("test")
+	out, err := b.RunFile(`file.star`)
+	if err == nil {
+		t.Error("expect error, got nil")
+	}
+	if len(out) != 0 {
+		t.Errorf("unexpected output: %v", out)
+	}
+	if m := b.GetModuleNames(); len(m) != 0 {
+		t.Errorf("unexpected modules: %v", m)
+	}
+}
+
+func TestRunFile(t *testing.T) {
+	// prepare file system
+	nm := "try.star"
+	s := `s = "hello world"; print(s)`
+	fs := memfs.New()
+	fs.WriteFile(nm, []byte(s), 0644)
+
+	// setup starbox
+	b := starbox.New("test")
+	b.SetFS(fs)
+
+	// run and check
+	out, err := b.RunFile(nm)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if out["s"] != "hello world" {
+		t.Errorf("unexpected output: %v", out)
+	}
+}
+
+func TestRunFile_PrepareError(t *testing.T) {
+	// prepare file system
+	nm := "try.star"
+	s := `s = "hello world"; print(s)`
+	fs := memfs.New()
+	fs.WriteFile(nm, []byte(s), 0644)
+
+	// setup starbox
+	b := starbox.New("test")
+	b.SetFS(fs)
+	b.AddModuleLoader("mine", func() (starlark.StringDict, error) {
+		return nil, errors.New("simple error")
+	})
+
+	// run and check
+	out, err := b.RunFile(nm)
+	if err == nil {
+		t.Error("expect error, got nil")
+	}
+	if len(out) != 0 {
+		t.Errorf("unexpected output: %v", out)
 	}
 }
 
