@@ -615,6 +615,12 @@ func TestSetAddRunPanic(t *testing.T) {
 		fn   func(b *starbox.Starbox)
 	}{
 		{
+			name: "set logger",
+			fn: func(b *starbox.Starbox) {
+				b.SetLogger(nil)
+			},
+		},
+		{
 			name: "set struct",
 			fn: func(b *starbox.Starbox) {
 				b.SetStructTag("json")

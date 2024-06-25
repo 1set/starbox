@@ -115,6 +115,9 @@ func (s *Starbox) SetLogger(sl *zap.SugaredLogger) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.hasExec {
+		log.DPanic("cannot set logger after execution")
+	}
 	s.userLog = sl
 }
 
