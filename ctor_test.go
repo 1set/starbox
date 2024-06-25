@@ -1086,10 +1086,11 @@ func TestUserLoggerModuleLoader(t *testing.T) {
 	b.SetLogger(hlog.NewSimpleLogger().SugaredLogger)
 	b.AddNamedModules("log")
 	out, err := b.Run(hereDoc(`
-		log.info("Aloha!")
-		log.error("Aloha!")
-		log.warn("Aloha!")
-		log.debug("Aloha!")
+		m = __modules__
+		log.info("Aloha!", module=m)
+		log.error("Aloha!", module=m)
+		log.warn("Aloha!", module=m)
+		log.debug("Aloha!", module=m)
 	`))
 	if err != nil {
 		t.Error(err)
