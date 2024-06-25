@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/1set/starlet"
+	slog "github.com/1set/starlet/lib/log"
 )
 
 // ModuleSetName defines the name of a module set.
@@ -45,7 +46,7 @@ func getModuleSet(modSet ModuleSetName) ([]string, error) {
 
 func (s *Starbox) extractModLoaders() (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
 	// extract starlet builtin module loaders
-	starPre, starLazy, starName, err := extractStarletModules(s.modSet, s.namedMods)
+	starPre, starLazy, starName, err := s.extractStarletModules(s.modSet, s.namedMods)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -76,7 +77,7 @@ func (s *Starbox) extractModLoaders() (preMods starlet.ModuleLoaderList, lazyMod
 }
 
 // extractStarletModules extracts starlet builtin module loaders from the given module set and additional module names.
-func extractStarletModules(setName ModuleSetName, nameMods []string) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
+func (s *Starbox) extractStarletModules(setName ModuleSetName, nameMods []string) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
 	// get starlet modules by set name
 	if modNames, err = getModuleSet(setName); err != nil {
 		return nil, nil, nil, err
@@ -88,11 +89,34 @@ func extractStarletModules(setName ModuleSetName, nameMods []string) (preMods st
 
 	// convert starlet builtin module names to module loaders
 	if len(modNames) > 0 {
-		if preMods, err = starlet.MakeBuiltinModuleLoaderList(modNames...); err != nil {
+		// replace user log module with the custom one
+		var (
+			leftNames   = make([]string, 0, len(modNames))
+			repPreMods  = make(starlet.ModuleLoaderList, 0, 1)
+			repLazyMods = make(starlet.ModuleLoaderMap, 1)
+		)
+		for _, name := range modNames {
+			if name == "log" && s.userLog != nil {
+				ld := slog.NewModule(s.userLog).LoadModule
+				repPreMods = append(repPreMods, ld)
+				repLazyMods[name] = ld
+			} else {
+				leftNames = append(leftNames, name)
+			}
+		}
+
+		// load vanilla starlet modules first
+		if preMods, err = starlet.MakeBuiltinModuleLoaderList(leftNames...); err != nil {
 			return nil, nil, nil, err
 		}
-		if lazyMods, err = starlet.MakeBuiltinModuleLoaderMap(modNames...); err != nil {
+		if lazyMods, err = starlet.MakeBuiltinModuleLoaderMap(leftNames...); err != nil {
 			return nil, nil, nil, err
+		}
+
+		// append custom log module if exists
+		if len(repPreMods) > 0 {
+			preMods = append(preMods, repPreMods...)
+			lazyMods.Merge(repLazyMods)
 		}
 	}
 	return

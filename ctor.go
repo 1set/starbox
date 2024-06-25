@@ -12,6 +12,7 @@ import (
 	"github.com/1set/starlet/dataconv"
 	libhttp "github.com/1set/starlet/lib/http"
 	"go.starlark.net/starlark"
+	"go.uber.org/zap"
 )
 
 // StarlarkFunc is a function that can be called from Starlark.
@@ -44,6 +45,7 @@ type Starbox struct {
 	modFS      fs.FS
 	modNames   []string
 	dynMods    DynamicModuleLoader
+	userLog    *zap.SugaredLogger
 }
 
 // New creates a new Starbox instance with default settings.
@@ -106,6 +108,14 @@ func (s *Starbox) GetModuleNames() []string {
 	defer s.mu.RUnlock()
 
 	return s.modNames
+}
+
+// SetLogger sets the logger for user-defined log output.
+func (s *Starbox) SetLogger(sl *zap.SugaredLogger) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.userLog = sl
 }
 
 // SetStructTag sets the custom tag of Go struct fields for Starlark.

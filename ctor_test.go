@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"bitbucket.org/neiku/hlog"
 	"github.com/1set/starbox"
 	"github.com/1set/starlet"
 	"github.com/1set/starlet/dataconv"
@@ -1072,5 +1073,28 @@ func TestDynamicModuleLoader(t *testing.T) {
 				t.Errorf("expect %d, got %v", es, out["c"])
 			}
 		})
+	}
+}
+
+// TestUserLoggerModuleLoader tests the following:
+// 1. Create a new Starbox instance.
+// 2. Set user logger.
+// 3. Add a named logger module.
+// 4. Run a script that uses function from the module loader.
+func TestUserLoggerModuleLoader(t *testing.T) {
+	b := starbox.New("test")
+	b.SetLogger(hlog.NewSimpleLogger().SugaredLogger)
+	b.AddNamedModules("log")
+	out, err := b.Run(hereDoc(`
+		log.info("Aloha!")
+		log.error("Aloha!")
+		log.warn("Aloha!")
+		log.debug("Aloha!")
+	`))
+	if err != nil {
+		t.Error(err)
+	}
+	if out == nil {
+		t.Error("expect not nil, got nil")
 	}
 }
