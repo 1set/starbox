@@ -17,6 +17,7 @@ var (
 
 // RunnerConfig defines the execution configuration for a Starbox instance.
 type RunnerConfig struct {
+	_        DoNotCompare
 	box      *Starbox
 	fileName string
 	script   []byte
