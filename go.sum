@@ -3,10 +3,10 @@ bitbucket.org/neiku/hlog v0.1.2/go.mod h1:oEgNTj1NYXHX7PSlntW43/geboj4D6JlMMdkqC
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/1set/gut v0.0.0-20201117175203-a82363231997 h1:za2jSkE1Rx56hTzBko3ZZ4gA/nq+rA/jVovWuAF4jyo=
 github.com/1set/gut v0.0.0-20201117175203-a82363231997/go.mod h1:DpCCAL0dgBMQdiqPUIIRpdU9zNcIZwJjW+L/8Mb30mw=
-github.com/1set/starlet v0.1.1 h1:QzNgfPG5LleqcvvYJ8NZhb8ANLG7mFDrAWq9wYKramY=
-github.com/1set/starlet v0.1.1/go.mod h1:CUUuoFBHm0vdj5YJsWHJUHhiV79jjn4V4PZ2gQtY2o8=
-github.com/1set/starlight v0.1.1 h1:U9qKgq3TvmyWDVx4KmGEAOIoTDAxxG+txzzDAAMYLEA=
-github.com/1set/starlight v0.1.1/go.mod h1:UBovtihT3K/JtaX+Nv/xBmdDk3LW6kr5yzqaYFo4KDQ=
+github.com/1set/starlet v0.1.2 h1:5Hdp6gQ/8OqQ/mN/FB+x99vG581ASOjD1fO5SgFNnRw=
+github.com/1set/starlet v0.1.2/go.mod h1:m73790SUBorwm+X2v9QeH2pnRl/ZWa2ihPTwtt0EEz8=
+github.com/1set/starlight v0.1.2 h1:Lf+ktJPLeck5QJLnKGj+brFkBBtitQBWLvXVA0cTcq8=
+github.com/1set/starlight v0.1.2/go.mod h1:UBovtihT3K/JtaX+Nv/xBmdDk3LW6kr5yzqaYFo4KDQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/toml v1.1.0/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/BurntSushi/toml v1.2.1 h1:9F2/+DoOYIOksmaJFPw1tGFy1eDnIJXg+UHjuD8lTak=
