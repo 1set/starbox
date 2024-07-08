@@ -15,6 +15,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// DoNotCompare prevents == and != comparisons on the containing struct.
+type DoNotCompare [0]func()
+
 // StarlarkFunc is a function that can be called from Starlark.
 type StarlarkFunc func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error)
 
@@ -30,6 +33,7 @@ type DynamicModuleLoader func(string) (starlet.ModuleLoader, error)
 
 // Starbox is a wrapper of starlet.Machine with additional features.
 type Starbox struct {
+	_          DoNotCompare
 	mac        *starlet.Machine
 	mu         sync.RWMutex
 	hasExec    bool

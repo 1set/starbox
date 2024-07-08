@@ -1,8 +1,10 @@
 package starbox_test
 
 import (
+	"fmt"
 	"net/http"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -1237,6 +1239,22 @@ func TestAddHTTPContext(t *testing.T) {
 	}
 }
 
+func TestConcurrentRun(t *testing.T) {
+	b := starbox.New("test")
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, err := b.Run(fmt.Sprintf(`a = (%d * (1 << 20)) * %d; print(a)`, i+1, i+2))
+			if err != nil {
+				t.Error(err)
+			}
+		}(i)
+	}
+	wg.Wait()
+}
+
 func BenchmarkRunBox(b *testing.B) {
 	s := hereDoc(`
 		a = 10
@@ -1256,6 +1274,19 @@ func BenchmarkRunBox(b *testing.B) {
 		_, err := box.Run(s)
 		if err != nil {
 			b.Errorf("unexpected error: %v", err)
+		}
+	}
+}
+
+func BenchmarkRunSimpleScript(b *testing.B) {
+	box := starbox.New("test")
+	b.ReportAllocs()
+	b.ResetTimer()
+	script := `a = 10; b = 20; c = a + b`
+	for i := 0; i < b.N; i++ {
+		_, err := box.Run(script)
+		if err != nil {
+			b.Error(err)
 		}
 	}
 }
