@@ -35,14 +35,13 @@
 package starbox
 
 import (
-	"bitbucket.org/neiku/hlog"
 	"go.uber.org/zap"
 )
 
 var log *zap.SugaredLogger
 
 func init() {
-	log = hlog.NewNoopLogger().SugaredLogger
+	log = zap.NewNop().Sugar()
 }
 
 // SetLog sets the logger from outside the package.
