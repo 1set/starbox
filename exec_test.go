@@ -801,6 +801,12 @@ func TestSetAddRunPanic(t *testing.T) {
 				b.SetDynamicModuleLoader(nil)
 			},
 		},
+		{
+			name: "add result builtin",
+			fn: func(b *starbox.Starbox) {
+				b.AddResultBuiltin("output")
+			},
+		},
 	}
 
 	for _, tt := range tests {

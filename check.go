@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/1set/starlet"
 	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
 	"go.starlark.net/syntax"
@@ -91,19 +90,10 @@ func (s *Starbox) predeclaredNames() (map[string]bool, error) {
 // builtinModuleGlobalNames returns the top-level names a builtin module injects
 // into the global namespace: the module name for a namespaced module (math ->
 // "math") or each flat binding for a flat module (go_idiomatic -> sleep, exit,
-// ...). It never panics; a misbehaving loader degrades to nil.
-func builtinModuleGlobalNames(name string) (names []string) {
-	defer func() {
-		if recover() != nil {
-			names = nil
-		}
-	}()
-	loader := starlet.GetBuiltinModule(name)
-	if loader == nil {
-		return nil
-	}
-	sd, err := loader()
-	if err != nil {
+// ...).
+func builtinModuleGlobalNames(name string) []string {
+	sd := loadBuiltinDict(name)
+	if len(sd) == 0 {
 		return nil
 	}
 	out := make([]string, 0, len(sd))

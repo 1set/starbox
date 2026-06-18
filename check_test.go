@@ -80,6 +80,19 @@ func TestCheckEdges(t *testing.T) {
 		t.Error("expected error for unknown module set")
 	}
 
+	// A builtin module requested by name resolves (exercises the named-module
+	// branch of the predeclared set).
+	named := starbox.New("check-named")
+	named.AddNamedModules("math")
+	if d, err := named.Check(`x = math.pi`); err != nil || d != nil {
+		t.Errorf("named builtin should resolve: diags=%v err=%v", d, err)
+	}
+
+	// Diagnostic.String() without a file falls back to "line:col: msg".
+	if got := (starbox.Diagnostic{Line: 2, Col: 3, Msg: "boom"}).String(); got != "2:3: boom" {
+		t.Errorf("Diagnostic.String() without file = %q, want \"2:3: boom\"", got)
+	}
+
 	// Check must not execute the script: a side effect would show here, and a
 	// real Run must still work afterwards.
 	b := starbox.New("check-pure")
