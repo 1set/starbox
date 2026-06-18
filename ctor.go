@@ -109,6 +109,21 @@ func (s *Starbox) GetSteps() uint64 {
 	return 0
 }
 
+// SetMaxExecutionSteps sets the per-run budget of Starlark computation steps;
+// 0 (the default) means unlimited. When a run exceeds the budget, Run/Call fail
+// with a starlet.MaxStepsExceededError reachable via errors.As — the standard
+// guard against a runaway loop that a wall-clock timeout cannot stop. The step
+// counter resets at the start of every run. It panics if called after execution.
+func (s *Starbox) SetMaxExecutionSteps(steps uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.hasExec {
+		log.DPanic("cannot set max execution steps after execution")
+	}
+	s.mac.SetMaxExecutionSteps(steps)
+}
+
 // GetModuleNames returns the names of the modules loaded after execution.
 func (s *Starbox) GetModuleNames() []string {
 	s.mu.RLock()

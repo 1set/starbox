@@ -1101,3 +1101,32 @@ func TestUserLoggerModuleLoader(t *testing.T) {
 		t.Error("expect not nil, got nil")
 	}
 }
+
+// TestExecutionBudget tests the step-budget guard (STAR-6 / BOX-01):
+//  1. a small budget aborts a runaway loop with a typed MaxStepsExceededError;
+//  2. zero means unlimited.
+func TestExecutionBudget(t *testing.T) {
+	b := starbox.New("budget")
+	b.SetPrintFunc(noopPrint)
+	b.SetMaxExecutionSteps(1000)
+	_, err := b.Run(hereDoc(`
+		s = 0
+		for i in range(100000000):
+			s += i
+	`))
+	if err == nil {
+		t.Fatal("expected step-budget error, got nil")
+	}
+	var me starlet.MaxStepsExceededError
+	if !errors.As(err, &me) {
+		t.Errorf("want MaxStepsExceededError, got %T: %v", err, err)
+	}
+
+	// Zero means unlimited: a small script completes normally.
+	b2 := starbox.New("budget-unlimited")
+	b2.SetPrintFunc(noopPrint)
+	b2.SetMaxExecutionSteps(0)
+	if _, err := b2.Run(hereDoc(`x = 1 + 2`)); err != nil {
+		t.Errorf("unlimited budget: unexpected error %v", err)
+	}
+}
