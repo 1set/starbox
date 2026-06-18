@@ -24,10 +24,33 @@ const (
 
 var (
 	fullModuleNames = starlet.GetAllBuiltinModuleNames()
-	moduleSets      = map[ModuleSetName][]string{
+
+	// safeModuleNames is an explicit allowlist of side-effect-free modules:
+	// none of them can reach the network or the filesystem. It is deliberately
+	// NOT derived by subtraction from starlet's full module set - that was
+	// BOX-05, where upgrading starlet silently slipped its new modules (notably
+	// net) into the Safe set. A new starlet module is withheld from Safe until
+	// it is classified here by hand; TestModuleSetsGolden fails until it is,
+	// and also proves no Safe member carries CapNetwork or CapFileSystem.
+	//
+	// go_idiomatic is intentionally kept: it supplies the idiomatic globals
+	// (sleep/exit and the print helpers). starlet classifies it as
+	// CapLog|CapProcess, which the Safe tier tolerates - the hard line Safe
+	// must never cross is network or filesystem access.
+	safeModuleNames = []string{
+		"atom", "base64", "csv", "go_idiomatic", "hashlib", "json", "math",
+		"random", "re", "regex", "serial", "stats", "string", "struct", "time",
+	}
+
+	// networkExtraNames are layered on top of Safe for NetworkModuleSet:
+	// outward I/O (http, net) plus log, which is retained at this tier for
+	// backward compatibility (it is a logging side effect, never part of Safe).
+	networkExtraNames = []string{"http", "log", "net"}
+
+	moduleSets = map[ModuleSetName][]string{
 		EmptyModuleSet:   {},
-		SafeModuleSet:    removeUniques(fullModuleNames, "file", "path", "runtime", "http", "log"),
-		NetworkModuleSet: removeUniques(fullModuleNames, "file", "path", "runtime"),
+		SafeModuleSet:    appendUniques(safeModuleNames),
+		NetworkModuleSet: appendUniques(safeModuleNames, networkExtraNames...),
 		FullModuleSet:    appendUniques(fullModuleNames),
 	}
 	localModuleLoaders = starlet.ModuleLoaderMap{}

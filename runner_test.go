@@ -67,7 +67,7 @@ func TestRunnerConfig_Full(t *testing.T) {
 		t.Errorf("expect x=STAR, got %v", res["x"])
 		return
 	}
-	if em := []string{"atom", "base64", "csv", "go_idiomatic", "hashlib", "json", "math", "random", "re", "string", "struct", "time"}; !reflect.DeepEqual(em, box.GetModuleNames()) {
+	if em := []string{"atom", "base64", "csv", "go_idiomatic", "hashlib", "json", "math", "random", "re", "regex", "serial", "stats", "string", "struct", "time"}; !reflect.DeepEqual(em, box.GetModuleNames()) {
 		t.Errorf("expect %v, got %v", em, box.GetModuleNames())
 		return
 	}

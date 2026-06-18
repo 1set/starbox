@@ -234,12 +234,12 @@ func TestSetModuleSet(t *testing.T) {
 		},
 		{
 			setName: starbox.SafeModuleSet,
-			hasMod:  []string{"base64", "json", "sleep", "exit"},
-			nonMod:  []string{"http", "runtime", "go_idiomatic", "file", "path"},
+			hasMod:  []string{"base64", "json", "sleep", "exit", "regex", "serial", "stats"},
+			nonMod:  []string{"http", "net", "runtime", "go_idiomatic", "file", "path"},
 		},
 		{
 			setName: starbox.NetworkModuleSet,
-			hasMod:  []string{"base64", "json", "sleep", "exit", "http"},
+			hasMod:  []string{"base64", "json", "sleep", "exit", "http", "net"},
 			nonMod:  []string{"runtime", "go_idiomatic", "file", "path"},
 		},
 		{
@@ -801,16 +801,16 @@ func TestAddNamedModuleAndModuleScript(t *testing.T) {
 	}
 }
 
-// TestSetScriptCache tests the following:
-// 1. Create a new Starbox instance, and cache is enabled by default.
-// 2. Local script from the filesystem.
-// 3. Run a script that uses the local script.
-// 4. Modify the local script.
-// 5. Run the script again, check if the output is the same.
-// 6. Disable the cache.
-// 7. Run the script again, check if the output is different.
-// 8. Enable the cache with custom provider.
-// 9. Run the script again, check if the output is the same.
+// TestSetScriptCache tests script caching across cache providers.
+//
+// Since starlet LET-21 (program cache key covers the full compile surface,
+// including the source content), editing a file's content is no longer served
+// stale from the cache - it recompiles. Cases [2] and [6] previously asserted
+// the stale-hit behaviour (30); that was the bug LET-21 fixed, so they now
+// recompile to 300. This test checks:
+//  1. Default cache: first run compiles; editing the content recompiles (no stale hit).
+//  2. Disabled cache: every run recompiles.
+//  3. Custom cache provider: same content-aware behaviour as the default.
 func TestSetScriptCache(t *testing.T) {
 	// scripts for virtual filesystem
 	s1 := hereDoc(`
@@ -848,9 +848,10 @@ func TestSetScriptCache(t *testing.T) {
 		fs.WriteFile(mn, []byte(s1), 0644)
 		testRun(b, 1, 30)
 
-		// modify file content, and run the script again -- dirty cache
+		// modify file content, and run the script again -- the cache key
+		// covers the source (starlet LET-21), so it recompiles, no stale hit
 		fs.WriteFile(mn, []byte(s2), 0644)
-		testRun(b, 2, 30)
+		testRun(b, 2, 300)
 	}
 
 	{
@@ -880,9 +881,10 @@ func TestSetScriptCache(t *testing.T) {
 		fs.WriteFile(mn, []byte(s1), 0644)
 		testRun(b, 5, 30)
 
-		// modify file content, and run the script again -- cache
+		// modify file content, and run the script again -- recompiles under
+		// the content-aware cache key (starlet LET-21), same as the default
 		fs.WriteFile(mn, []byte(s2), 0644)
-		testRun(b, 6, 30)
+		testRun(b, 6, 300)
 	}
 }
 
