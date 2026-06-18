@@ -1,0 +1,45 @@
+name: Scorecard
+
+# OpenSSF Scorecard — supply-chain security posture. Standalone per repo (the
+# canonical OpenSSF setup): runs in-repo so OIDC publishing works without a
+# PAT. Uses only the ephemeral GITHUB_TOKEN; the Branch-Protection check is
+# limited without an admin-read PAT, every other check runs normally.
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: '27 4 * * 1'
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-22.04
+    permissions:
+      security-events: write   # upload SARIF to code scanning
+      id-token: write          # publish results to the OpenSSF API (badge)
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Run analysis
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+      - name: Upload to code-scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif

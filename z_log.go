@@ -28,10 +28,10 @@
 // # Module Loading Priority
 //
 // Modules are loaded in the following order of priority before execution:
-//   1. Preloaded Starlet modules from predefined sets and additional Starlet modules by name.
-//   2. Custom modules added by users, preloaded Starlet modules with the same names would not be overwritten.
-//   3. Dynamically loaded modules based on their names just before execution.
-//   4. If a module name is not found in any of the built-in, custom, or dynamic modules, an error is returned.
+//  1. Preloaded Starlet modules from predefined sets and additional Starlet modules by name.
+//  2. Custom modules added by users, preloaded Starlet modules with the same names would not be overwritten.
+//  3. Dynamically loaded modules based on their names just before execution.
+//  4. If a module name is not found in any of the built-in, custom, or dynamic modules, an error is returned.
 package starbox
 
 import (
