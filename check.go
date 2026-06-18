@@ -13,14 +13,19 @@ import (
 // Diagnostic is one problem Check found in a script - a syntax error or a
 // resolve error (e.g. an undefined name) - with its 1-based source position.
 type Diagnostic struct {
-	Msg  string
-	Line int
-	Col  int
+	File string // source filename the problem is in (e.g. "box.star")
+	Line int    // 1-based line
+	Col  int    // 1-based column
+	Msg  string // human-readable description
 }
 
-// String renders the diagnostic as "line:col: message".
+// String renders the diagnostic in the conventional compiler format
+// "file:line:col: message" (the file is omitted when unknown).
 func (d Diagnostic) String() string {
-	return fmt.Sprintf("%d:%d: %s", d.Line, d.Col, d.Msg)
+	if d.File == "" {
+		return fmt.Sprintf("%d:%d: %s", d.Line, d.Col, d.Msg)
+	}
+	return fmt.Sprintf("%s:%d:%d: %s", d.File, d.Line, d.Col, d.Msg)
 }
 
 // Check parses and resolves a script against the Box's configured environment
@@ -115,13 +120,13 @@ func toDiagnostics(err error) []Diagnostic {
 	if errors.As(err, &rl) {
 		ds := make([]Diagnostic, 0, len(rl))
 		for _, e := range rl {
-			ds = append(ds, Diagnostic{Msg: e.Msg, Line: int(e.Pos.Line), Col: int(e.Pos.Col)})
+			ds = append(ds, Diagnostic{File: e.Pos.Filename(), Line: int(e.Pos.Line), Col: int(e.Pos.Col), Msg: e.Msg})
 		}
 		return ds
 	}
 	var se syntax.Error
 	if errors.As(err, &se) {
-		return []Diagnostic{{Msg: se.Msg, Line: int(se.Pos.Line), Col: int(se.Pos.Col)}}
+		return []Diagnostic{{File: se.Pos.Filename(), Line: int(se.Pos.Line), Col: int(se.Pos.Col), Msg: se.Msg}}
 	}
 	return []Diagnostic{{Msg: err.Error()}}
 }

@@ -43,7 +43,10 @@ func TestCheckUndefined(t *testing.T) {
 	if d[0].Line != 1 {
 		t.Errorf("diagnostic line = %d, want 1", d[0].Line)
 	}
-	if s := d[0].String(); !strings.HasPrefix(s, "1:") || !strings.Contains(s, "undefined: nope") {
+	if d[0].File != "box.star" {
+		t.Errorf("diagnostic file = %q, want box.star", d[0].File)
+	}
+	if s := d[0].String(); !strings.HasPrefix(s, "box.star:1:") || !strings.Contains(s, "undefined: nope") {
 		t.Errorf("Diagnostic.String() = %q", s)
 	}
 }
