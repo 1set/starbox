@@ -113,4 +113,17 @@ func TestBuiltinModuleMembers(t *testing.T) {
 	if m := builtinModuleMembers("nonexistent_xyz"); m != nil {
 		t.Errorf("unknown module members: want nil, got %v", m)
 	}
+
+	// builtinModuleGlobalNames returns the injected top-level names (the module
+	// name for a namespaced module, the flat bindings for go_idiomatic, nil for
+	// an unknown module).
+	if g := builtinModuleGlobalNames("math"); !reflect.DeepEqual(g, []string{"math"}) {
+		t.Errorf("math globals: want [math], got %v", g)
+	}
+	if g := builtinModuleGlobalNames("go_idiomatic"); !has(g, "sleep") {
+		t.Errorf("go_idiomatic globals missing sleep: %v", g)
+	}
+	if g := builtinModuleGlobalNames("nonexistent_xyz"); g != nil {
+		t.Errorf("unknown globals: want nil, got %v", g)
+	}
 }

@@ -51,6 +51,8 @@ type Starbox struct {
 	modNames   []string
 	dynMods    DynamicModuleLoader
 	userLog    *zap.SugaredLogger
+	result     starlark.Value
+	resultSet  bool
 }
 
 // New creates a new Starbox instance with default settings.
