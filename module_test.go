@@ -84,3 +84,33 @@ func TestModuleSetsGolden(t *testing.T) {
 		t.Errorf("module classification drifted from starlet's full set:\n  classified: %v\n  full:       %v\n(classify the new/removed starlet module in module.go)", got, want)
 	}
 }
+
+// TestBuiltinModuleMembers covers the member-enumeration helper across the
+// three loader shapes Starlet returns, plus the unknown-module path. It backs
+// DescribeSurface (STAR-9 / BOX-09).
+func TestBuiltinModuleMembers(t *testing.T) {
+	has := func(ss []string, want string) bool {
+		for _, s := range ss {
+			if s == want {
+				return true
+			}
+		}
+		return false
+	}
+	// Module shape: members come from the module value's attributes.
+	if m := builtinModuleMembers("math"); !has(m, "sqrt") || !has(m, "pi") {
+		t.Errorf("math members: %v", m)
+	}
+	// Flat shape: the top-level binding names (go_idiomatic).
+	if m := builtinModuleMembers("go_idiomatic"); !has(m, "sleep") || !has(m, "exit") {
+		t.Errorf("go_idiomatic members: %v", m)
+	}
+	// Single bare builtin: the binding name itself.
+	if m := builtinModuleMembers("struct"); !reflect.DeepEqual(m, []string{"struct"}) {
+		t.Errorf("struct members: want [struct], got %v", m)
+	}
+	// Unknown module: no loader, so nil members.
+	if m := builtinModuleMembers("nonexistent_xyz"); m != nil {
+		t.Errorf("unknown module members: want nil, got %v", m)
+	}
+}

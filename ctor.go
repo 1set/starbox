@@ -45,6 +45,7 @@ type Starbox struct {
 	modSet     ModuleSetName
 	namedMods  []string
 	loadMods   starlet.ModuleLoaderMap
+	modMembers map[string][]string
 	scriptMods map[string]string
 	modFS      fs.FS
 	modNames   []string
@@ -339,6 +340,7 @@ func (s *Starbox) AddModuleFunctions(name string, funcs FuncMap) {
 		sfd[fn] = starlark.NewBuiltin(name+"."+fn, fv)
 	}
 	s.loadMods[name] = dataconv.WrapModuleData(name, sfd)
+	s.recordModMembers(name, sfd)
 }
 
 // AddModuleData creates a module for the given module data along with a module loader, and adds it to the preload and lazyload registry.
@@ -355,6 +357,7 @@ func (s *Starbox) AddModuleData(moduleName string, moduleData starlark.StringDic
 		s.loadMods = make(map[string]starlet.ModuleLoader)
 	}
 	s.loadMods[moduleName] = dataconv.WrapModuleData(moduleName, moduleData)
+	s.recordModMembers(moduleName, moduleData)
 }
 
 // AddStructFunctions adds a module with the given struct functions along with a module loader, and adds it to the preload and lazyload registry.
@@ -376,6 +379,7 @@ func (s *Starbox) AddStructFunctions(name string, funcs FuncMap) {
 		sfd[fn] = starlark.NewBuiltin(name+"."+fn, fv)
 	}
 	s.loadMods[name] = dataconv.WrapStructData(name, sfd)
+	s.recordModMembers(name, sfd)
 }
 
 // AddStructData creates a module for the given struct data along with a module loader, and adds it to the preload and lazyload registry.
@@ -392,6 +396,7 @@ func (s *Starbox) AddStructData(structName string, structData starlark.StringDic
 		s.loadMods = make(map[string]starlet.ModuleLoader)
 	}
 	s.loadMods[structName] = dataconv.WrapStructData(structName, structData)
+	s.recordModMembers(structName, structData)
 }
 
 // AddModuleScript creates a module with given module script in virtual filesystem, and adds it to the preload and lazyload registry.
