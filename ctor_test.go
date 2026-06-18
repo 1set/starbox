@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"bitbucket.org/neiku/hlog"
 	"github.com/1set/starbox"
 	"github.com/1set/starlet"
 	"github.com/1set/starlet/dataconv"
 	"github.com/psanford/memfs"
 	"go.starlark.net/starlark"
+	"go.uber.org/zap"
 )
 
 var (
@@ -1083,7 +1083,7 @@ func TestDynamicModuleLoader(t *testing.T) {
 // 4. Run a script that uses function from the module loader.
 func TestUserLoggerModuleLoader(t *testing.T) {
 	b := starbox.New("test")
-	b.SetLogger(hlog.NewSimpleLogger().SugaredLogger)
+	b.SetLogger(zap.NewExample().Sugar())
 	b.AddNamedModules("log")
 	out, err := b.Run(hereDoc(`
 		m = __modules__
