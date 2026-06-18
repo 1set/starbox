@@ -115,24 +115,30 @@ func (s *Starbox) DescribeSurface() (Surface, error) {
 	return Surface{Modules: mods, Globals: globals}, nil
 }
 
-// builtinModuleMembers returns the member names a Starlet builtin module
-// exposes, inspecting the module's (known-pure) loader output. It handles the
-// three shapes a loader can return: a single module/struct value with attrs, a
-// single bare builtin, or a flat set of top-level bindings (e.g. go_idiomatic).
-// It never panics: a misbehaving loader degrades to nil members.
-func builtinModuleMembers(name string) (members []string) {
-	defer func() {
-		if recover() != nil {
-			members = nil
-		}
-	}()
-
+// loadBuiltinDict returns the StringDict a Starlet builtin module's loader
+// produces, or nil if name is not a builtin module or its loader fails. These
+// loaders are Starlet's own known-pure constructors, invoked here only for
+// config-time introspection (never with script input), so no panic guard is
+// needed.
+func loadBuiltinDict(name string) starlark.StringDict {
 	loader := starlet.GetBuiltinModule(name)
 	if loader == nil {
 		return nil
 	}
 	sd, err := loader()
-	if err != nil || len(sd) == 0 {
+	if err != nil {
+		return nil
+	}
+	return sd
+}
+
+// builtinModuleMembers returns the member names a Starlet builtin module
+// exposes. It handles the three shapes a loader can return: a single
+// module/struct value with attrs, a single bare builtin, or a flat set of
+// top-level bindings (e.g. go_idiomatic).
+func builtinModuleMembers(name string) []string {
+	sd := loadBuiltinDict(name)
+	if len(sd) == 0 {
 		return nil
 	}
 	// Module/Struct shape: a single value that has attributes.
