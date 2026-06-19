@@ -1165,3 +1165,41 @@ func TestOutputLimit(t *testing.T) {
 		t.Errorf("want a=1, got %v (%T)", out["a"], out["a"])
 	}
 }
+
+// TestModuleWithheldError pins the R7 three-way load-error distinction (BOX-07):
+// a real module withheld by the active set is a typed ModuleWithheldError;
+// a non-existent module and an undefined name are not.
+func TestModuleWithheldError(t *testing.T) {
+	run := func(script string) error {
+		b := starbox.New("withheld")
+		b.SetPrintFunc(noopPrint)
+		b.SetModuleSet(starbox.SafeModuleSet)
+		_, err := b.Run(hereDoc(script))
+		return err
+	}
+
+	// 1. A real builtin withheld by the Safe set -> typed ModuleWithheldError.
+	var mwe starbox.ModuleWithheldError
+	for _, name := range []string{"file", "net"} {
+		err := run(fmt.Sprintf(`load(%q, "x")`, name))
+		if !errors.As(err, &mwe) {
+			t.Errorf("load(%q): want ModuleWithheldError, got %T: %v", name, err, err)
+		} else if !strings.Contains(err.Error(), name) {
+			t.Errorf("withheld error should name %q: %v", name, err)
+		}
+	}
+
+	// 2. A non-existent module is NOT withheld (distinct case).
+	if err := run(`load("totally_fake_xyz", "x")`); err == nil {
+		t.Error("non-existent module: want error, got nil")
+	} else if errors.As(err, &mwe) {
+		t.Error("non-existent module wrongly classified as withheld")
+	}
+
+	// 3. An undefined name is a resolve error, also not withheld.
+	if err := run(`y = nope`); err == nil {
+		t.Error("undefined name: want error, got nil")
+	} else if errors.As(err, &mwe) {
+		t.Error("undefined name wrongly classified as withheld")
+	}
+}
