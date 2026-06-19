@@ -118,6 +118,19 @@ func TestRunnerConfig_Reuse(t *testing.T) {
 	t.Logf("box2: %v", box2)
 }
 
+func TestRunnerConfig_OutputLimit(t *testing.T) {
+	// Execute() must enforce SetMaxOutputEntries just like Run() does (P1-1).
+	b := starbox.New("runner-limit")
+	b.SetPrintFunc(noopPrint)
+	b.SetMaxOutputEntries(1)
+
+	_, err := b.CreateRunConfig().Script("a = 1\nb = 2").Execute()
+	var oe starbox.OutputLimitExceededError
+	if !errors.As(err, &oe) {
+		t.Errorf("Execute should enforce the output limit; got %T: %v", err, err)
+	}
+}
+
 func TestRunnerConfig_KeyValues(t *testing.T) {
 	cfg := starbox.New("aloha").CreateRunConfig().
 		KeyValueMap(starlet.StringAnyMap{"a": 1}).
