@@ -33,26 +33,27 @@ type DynamicModuleLoader func(string) (starlet.ModuleLoader, error)
 
 // Starbox is a wrapper of starlet.Machine with additional features.
 type Starbox struct {
-	_          DoNotCompare
-	mac        *starlet.Machine
-	mu         sync.RWMutex
-	hasExec    bool
-	execTimes  uint
-	name       string
-	structTag  string
-	printFunc  starlet.PrintFunc
-	globals    starlet.StringAnyMap
-	modSet     ModuleSetName
-	namedMods  []string
-	loadMods   starlet.ModuleLoaderMap
-	modMembers map[string][]string
-	scriptMods map[string]string
-	modFS      fs.FS
-	modNames   []string
-	dynMods    DynamicModuleLoader
-	userLog    *zap.SugaredLogger
-	result     starlark.Value
-	resultSet  bool
+	_                DoNotCompare
+	mac              *starlet.Machine
+	mu               sync.RWMutex
+	hasExec          bool
+	execTimes        uint
+	name             string
+	structTag        string
+	printFunc        starlet.PrintFunc
+	globals          starlet.StringAnyMap
+	modSet           ModuleSetName
+	namedMods        []string
+	loadMods         starlet.ModuleLoaderMap
+	modMembers       map[string][]string
+	scriptMods       map[string]string
+	modFS            fs.FS
+	modNames         []string
+	dynMods          DynamicModuleLoader
+	userLog          *zap.SugaredLogger
+	result           starlark.Value
+	resultSet        bool
+	maxOutputEntries uint
 }
 
 // New creates a new Starbox instance with default settings.
@@ -122,6 +123,22 @@ func (s *Starbox) SetMaxExecutionSteps(steps uint64) {
 		log.DPanic("cannot set max execution steps after execution")
 	}
 	s.mac.SetMaxExecutionSteps(steps)
+}
+
+// SetMaxOutputEntries sets the maximum number of top-level entries a run's
+// result may contain; 0 (the default) means unlimited. A run that produces more
+// is aborted with an OutputLimitExceededError (reachable via errors.As) and its
+// result is withheld. This is a post-hoc policy gate on result size, not a
+// memory guard - use SetMaxExecutionSteps to bound resource use. It panics if
+// called after execution.
+func (s *Starbox) SetMaxOutputEntries(n uint) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.hasExec {
+		log.DPanic("cannot set max output entries after execution")
+	}
+	s.maxOutputEntries = n
 }
 
 // GetModuleNames returns the names of the modules loaded after execution.

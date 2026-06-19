@@ -1130,3 +1130,32 @@ func TestExecutionBudget(t *testing.T) {
 		t.Errorf("unlimited budget: unexpected error %v", err)
 	}
 }
+
+// TestOutputLimit tests the output-entry cap (STAR-6 / BOX-01): a run whose
+// result exceeds the limit is withheld with a typed error; a generous limit
+// passes through.
+func TestOutputLimit(t *testing.T) {
+	b := starbox.New("outlimit")
+	b.SetPrintFunc(noopPrint)
+	b.SetMaxOutputEntries(2)
+	if _, err := b.Run(hereDoc("a = 1\nb = 2\nc = 3\nd = 4")); err == nil {
+		t.Fatal("expected output-entry-limit error, got nil")
+	} else {
+		var oe starbox.OutputLimitExceededError
+		if !errors.As(err, &oe) {
+			t.Errorf("want OutputLimitExceededError, got %T: %v", err, err)
+		}
+	}
+
+	// A generous limit lets the result through unchanged.
+	b2 := starbox.New("outlimit-ok")
+	b2.SetPrintFunc(noopPrint)
+	b2.SetMaxOutputEntries(50)
+	out, err := b2.Run(hereDoc("a = 1\nb = 2"))
+	if err != nil {
+		t.Fatalf("under limit: %v", err)
+	}
+	if out["a"] != int64(1) {
+		t.Errorf("want a=1, got %v (%T)", out["a"], out["a"])
+	}
+}

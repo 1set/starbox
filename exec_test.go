@@ -813,6 +813,12 @@ func TestSetAddRunPanic(t *testing.T) {
 				b.SetMaxExecutionSteps(1000)
 			},
 		},
+		{
+			name: "set max output entries",
+			fn: func(b *starbox.Starbox) {
+				b.SetMaxOutputEntries(10)
+			},
+		},
 	}
 
 	for _, tt := range tests {
