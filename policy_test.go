@@ -6,6 +6,8 @@ package starbox_test
 //   - TestPolicyCustomAndDynamic   custom denied -> absent; dynamic denied -> loader NOT invoked
 //   - TestPolicyClone              grants are deep-copied (caller cannot mutate after construction)
 //   - TestPolicyZeroDeniesAll      the zero Policy permits nothing - not even pure builtins
+//   - TestPolicyGatesScriptModule  AddModuleScript modules go through the load gate too
+//   - TestPolicySurfaceCheckConverge DescribeSurface/Check report only policy-permitted modules
 
 import (
 	"errors"
@@ -104,6 +106,76 @@ func TestPolicyZeroDeniesAll(t *testing.T) {
 	var mwe starbox.ModuleWithheldError
 	if _, err := b.Run(`load("math", "pi")`); !errors.As(err, &mwe) {
 		t.Errorf("zero policy must withhold even pure builtins; got %T: %v", err, err)
+	}
+}
+
+func TestPolicyGatesScriptModule(t *testing.T) {
+	// A host-injected script module is subject to the load gate too: a zero
+	// Policy must NOT let a script load() it (P0-1).
+	t.Run("zero policy denies", func(t *testing.T) {
+		b := starbox.NewWithPolicy("audit", starbox.Policy{})
+		b.SetPrintFunc(noopPrint)
+		b.AddModuleScript("secret", `x = 42`)
+		if out, err := b.Run(`load("secret.star", "x")` + "\n" + `y = x`); err == nil {
+			t.Errorf("zero policy must not allow a script module; got out=%v", out)
+		}
+	})
+	// Permitting the script module by its registered (.star) name lets it load.
+	t.Run("explicit name allows", func(t *testing.T) {
+		b := starbox.NewWithPolicy("audit", starbox.Policy{Modules: starbox.ModuleAllow{Names: []string{"secret.star"}}})
+		b.SetPrintFunc(noopPrint)
+		b.AddModuleScript("secret", `x = 42`)
+		out, err := b.Run(`load("secret.star", "x")` + "\n" + `y = x`)
+		if err != nil || out["y"] != int64(42) {
+			t.Errorf("explicit allow should load; out=%v err=%v", out, err)
+		}
+	})
+	// Nested-path script modules are gated by their full .star key.
+	t.Run("nested explicit allows", func(t *testing.T) {
+		b := starbox.NewWithPolicy("audit", starbox.Policy{Modules: starbox.ModuleAllow{Names: []string{"lib/util.star"}}})
+		b.SetPrintFunc(noopPrint)
+		b.AddModuleScript("lib/util", `v = 7`)
+		out, err := b.Run(`load("lib/util.star", "v")` + "\n" + `w = v`)
+		if err != nil || out["w"] != int64(7) {
+			t.Errorf("nested explicit allow should load; out=%v err=%v", out, err)
+		}
+	})
+}
+
+func TestPolicySurfaceCheckConverge(t *testing.T) {
+	// Policy permits only math; the Box otherwise requests everything.
+	mk := func() *starbox.Starbox {
+		b := starbox.NewWithPolicy("audit", starbox.Policy{Modules: starbox.ModuleAllow{Names: []string{"math"}}})
+		b.SetPrintFunc(noopPrint)
+		b.SetModuleSet(starbox.FullModuleSet)
+		return b
+	}
+
+	// DescribeSurface must report only policy-permitted modules (P0-2).
+	sf, err := mk().DescribeSurface()
+	if err != nil {
+		t.Fatalf("DescribeSurface: %v", err)
+	}
+	names := map[string]bool{}
+	for _, m := range sf.Modules {
+		names[m.Name] = true
+	}
+	if !names["math"] {
+		t.Error("math should be in the policy-filtered surface")
+	}
+	if names["file"] || names["re"] {
+		t.Errorf("withheld modules leaked into surface: %v", names)
+	}
+
+	// Check must flag a policy-withheld module name as undefined.
+	if diags, err := mk().Check(`x = file`); err != nil {
+		t.Fatalf("Check: %v", err)
+	} else if len(diags) == 0 {
+		t.Error("Check should flag a policy-withheld name (file) as undefined")
+	}
+	// A permitted module resolves cleanly.
+	if diags, err := mk().Check(`y = math.pi`); err != nil || len(diags) != 0 {
+		t.Errorf("permitted module should pass Check; diags=%v err=%v", diags, err)
 	}
 }
 
