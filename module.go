@@ -79,11 +79,11 @@ func (s *Starbox) extractModLoaders() (preMods starlet.ModuleLoaderList, lazyMod
 		return nil, nil, nil, err
 	}
 
-	// extract custom module loaders
-	cusPre, cusLazy, cusName := extractLocalModules(s.loadMods, stringsMapSet(starName))
+	// extract custom module loaders (policy-gated)
+	cusPre, cusLazy, cusName := extractLocalModules(s.loadMods, stringsMapSet(starName), s.policyAllows)
 
-	// extract dynamic module loaders
-	dynPre, dynLazy, dynName, err := extractDynamicModules(s.dynMods, s.namedMods, stringsMapSet(starName, cusName))
+	// extract dynamic module loaders (policy-gated before the loader is invoked)
+	dynPre, dynLazy, dynName, err := extractDynamicModules(s.dynMods, s.namedMods, stringsMapSet(starName, cusName), s.policyAllows)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -114,6 +114,11 @@ func (s *Starbox) extractStarletModules(setName ModuleSetName, nameMods []string
 	// append additional starlet module by individual names
 	addNames := intersectStrings(fullModuleNames, nameMods)
 	modNames = appendUniques(modNames, addNames...)
+
+	// apply the policy load gate (A4): keep only policy-permitted builtins.
+	// A withheld builtin that a script then load()s still surfaces Starlet's
+	// ModuleWithheldError (it is a known builtin omitted from the loaded set).
+	modNames = s.gateNames(modNames)
 
 	// convert starlet builtin module names to module loaders
 	if len(modNames) > 0 {
@@ -151,7 +156,7 @@ func (s *Starbox) extractStarletModules(setName ModuleSetName, nameMods []string
 }
 
 // extractLocalModules extracts custom module loaders.
-func extractLocalModules(loadMods starlet.ModuleLoaderMap, existMods map[string]struct{}) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string) {
+func extractLocalModules(loadMods starlet.ModuleLoaderMap, existMods map[string]struct{}, allow func(string) bool) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string) {
 	// no custom module loaders
 	if len(loadMods) == 0 {
 		return
@@ -163,6 +168,11 @@ func extractLocalModules(loadMods starlet.ModuleLoaderMap, existMods map[string]
 	for name, loader := range loadMods {
 		// skip loaded modules, i.e. avoid conflicts with starlet builtin modules
 		if _, ok := existMods[name]; ok {
+			continue
+		}
+		// policy load gate (A4): a custom module the policy does not permit is
+		// withheld (not loaded).
+		if !allow(name) {
 			continue
 		}
 		preMods = append(preMods, loader)
@@ -185,7 +195,7 @@ var (
 type ModuleWithheldError = starlet.ModuleWithheldError
 
 // extractDynamicModules extracts dynamic module loaders by module names.
-func extractDynamicModules(metaLoad DynamicModuleLoader, nameMods []string, existMods map[string]struct{}) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
+func extractDynamicModules(metaLoad DynamicModuleLoader, nameMods []string, existMods map[string]struct{}, allow func(string) bool) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
 	// initialize
 	preMods = make(starlet.ModuleLoaderList, 0, len(nameMods))
 	lazyMods = make(starlet.ModuleLoaderMap, len(nameMods))
@@ -194,6 +204,11 @@ func extractDynamicModules(metaLoad DynamicModuleLoader, nameMods []string, exis
 	for _, name := range nameMods {
 		// skip loaded modules, i.e. dynamic modules acts as a complement to static modules
 		if _, ok := existMods[name]; ok {
+			continue
+		}
+		// policy load gate (A4): skip a non-permitted name BEFORE invoking the
+		// dynamic loader, so a withheld module's loader is never run (fail-closed).
+		if !allow(name) {
 			continue
 		}
 

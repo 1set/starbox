@@ -54,11 +54,26 @@ type Starbox struct {
 	result           starlark.Value
 	resultSet        bool
 	maxOutputEntries uint
+	policy           *Policy
 }
 
 // New creates a new Starbox instance with default settings.
 func New(name string) *Starbox {
 	return &Starbox{mac: newStarMachine(name), name: name}
+}
+
+// NewWithPolicy creates a Starbox whose loadable modules are constrained by a
+// host-side, default-deny Policy (the A4 load gate). The policy is deep-copied
+// in (the caller cannot mutate grants afterwards) and only ever TIGHTENS what
+// SetModuleSet/AddNamedModules/custom/dynamic modules would otherwise load — a
+// module loads iff it is both requested AND permitted by the policy. Modules
+// the policy withholds raise a ModuleWithheldError (for builtins) or are simply
+// absent (custom/dynamic). New (no policy) behaviour is unchanged.
+func NewWithPolicy(name string, p Policy) *Starbox {
+	s := New(name)
+	cp := p.clone()
+	s.policy = &cp
+	return s
 }
 
 func newStarMachine(name string) *starlet.Machine {
