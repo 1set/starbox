@@ -94,7 +94,17 @@ func (s *Starbox) String() string {
 	return fmt.Sprintf("🥡Box{name:%s,run:%d}", s.name, s.execTimes)
 }
 
-// Reset creates an new Starlet machine and keeps the settings.
+// Reset replaces the underlying Starlet machine with a fresh one while keeping
+// the Box's configuration (name, globals, module set, script modules, policy,
+// limits, ...), so the same Box can be run again from a clean per-run state.
+//
+// Reset is for SERIAL reuse of a single Box. There is deliberately no Clone and
+// no Box pool: per-run state (globals injected during a run, the Starlark step
+// counter) lives on the machine, so sharing or hand-pooling a Box would leak
+// that state between runs. For a hot path or concurrent workload, construct a
+// fresh New(...) per run and share only the compiled-program cache across them
+// via SetScriptCache - that keeps compilation shared while keeping per-run state
+// isolated.
 func (s *Starbox) Reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -212,9 +222,14 @@ func (s *Starbox) SetFS(hfs fs.FS) {
 	s.modFS = hfs
 }
 
-// SetScriptCache sets custom cache provider for script content.
-// nil cache provider will disable script cache.
-// It panics if called after execution.
+// SetScriptCache sets a custom cache provider for compiled script content; a
+// nil provider disables the script cache. It panics if called after execution.
+//
+// Hot-path / concurrency recommendation: a single starlet.MemoryCache
+// (NewMemoryCache, which is safe for concurrent use) shared across many per-run
+// New(...) boxes lets each distinct script compile once and be reused, while
+// every Box keeps its own isolated per-run state. Prefer this over reusing or
+// pooling a single Box (see Reset).
 func (s *Starbox) SetScriptCache(cache starlet.ByteCache) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
