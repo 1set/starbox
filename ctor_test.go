@@ -888,6 +888,51 @@ func TestSetScriptCache(t *testing.T) {
 	}
 }
 
+// countingCache wraps a ByteCache and counts Set (compile-store) calls, so a
+// test can prove a shared cache is reused across boxes rather than recompiled.
+type countingCache struct {
+	inner starlet.ByteCache
+	sets  int
+}
+
+func (c *countingCache) Get(key string) ([]byte, bool) { return c.inner.Get(key) }
+
+func (c *countingCache) Set(key string, value []byte) error {
+	c.sets++
+	return c.inner.Set(key, value)
+}
+
+// TestSharedScriptCacheAcrossBoxes locks the STAR-15 hot-path pattern: a single
+// ByteCache shared across per-run New(...) boxes compiles each distinct script
+// once and reuses it, rather than reusing or pooling a single Box. The second
+// box running the identical script must be served from the shared cache (no new
+// compile), proving compilation is shared while per-run state stays isolated.
+func TestSharedScriptCacheAcrossBoxes(t *testing.T) {
+	shared := &countingCache{inner: starlet.NewMemoryCache()}
+	script := hereDoc(`
+		a = 10
+		b = 20
+		c = a + b
+	`)
+	run := func(name string) {
+		b := starbox.New(name)
+		b.SetPrintFunc(noopPrint)
+		b.SetScriptCache(shared)
+		out, err := b.Run(script)
+		if err != nil {
+			t.Fatalf("%s: run failed: %v", name, err)
+		}
+		if es := int64(30); out["c"] != es {
+			t.Errorf("%s: expect c=%d, got %v", name, es, out["c"])
+		}
+	}
+	run("box1") // first box compiles the script -> one Set
+	run("box2") // identical script -> served from the shared cache, no new Set
+	if shared.sets != 1 {
+		t.Errorf("shared cache should compile the script once across boxes, got %d compiles", shared.sets)
+	}
+}
+
 // TestDynamicModuleLoader tests the following:
 // 1. Create a new Starbox instance.
 // 2. Add a module loader.
