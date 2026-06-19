@@ -5,6 +5,7 @@ package starbox_test
 //   - TestPolicyCapabilityWidening Capabilities widen to builtins whose caps are a subset
 //   - TestPolicyCustomAndDynamic   custom denied -> absent; dynamic denied -> loader NOT invoked
 //   - TestPolicyClone              grants are deep-copied (caller cannot mutate after construction)
+//   - TestPolicyZeroDeniesAll      the zero Policy permits nothing - not even pure builtins
 
 import (
 	"errors"
@@ -87,6 +88,22 @@ func TestPolicyCustomAndDynamic(t *testing.T) {
 	}
 	if !called["dynok"] {
 		t.Error("permitted dynamic module's loader was not invoked")
+	}
+}
+
+func TestPolicyZeroDeniesAll(t *testing.T) {
+	// The zero Policy (empty ModuleAllow: nil Names, Capabilities == CapPure == 0)
+	// must permit NOTHING - not even a pure builtin. Regression guard for the
+	// zero-value bug where CapPure widened to every pure module because
+	// CapPure.Has(pure) is true.
+	b := starbox.NewWithPolicy("zero", starbox.Policy{})
+	b.SetPrintFunc(noopPrint)
+	b.SetModuleSet(starbox.FullModuleSet) // requests everything; the policy permits none
+
+	// A pure builtin (math) is requested by the set but withheld by the policy.
+	var mwe starbox.ModuleWithheldError
+	if _, err := b.Run(`load("math", "pi")`); !errors.As(err, &mwe) {
+		t.Errorf("zero policy must withhold even pure builtins; got %T: %v", err, err)
 	}
 }
 
