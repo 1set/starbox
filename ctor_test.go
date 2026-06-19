@@ -1108,6 +1108,9 @@ func TestUserLoggerModuleLoader(t *testing.T) {
 func TestExecutionBudget(t *testing.T) {
 	b := starbox.New("budget")
 	b.SetPrintFunc(noopPrint)
+	if s := b.GetSteps(); s != 0 {
+		t.Errorf("a fresh box should report 0 steps, got %d", s)
+	}
 	b.SetMaxExecutionSteps(1000)
 	_, err := b.Run(hereDoc(`
 		s = 0
@@ -1144,6 +1147,9 @@ func TestOutputLimit(t *testing.T) {
 		var oe starbox.OutputLimitExceededError
 		if !errors.As(err, &oe) {
 			t.Errorf("want OutputLimitExceededError, got %T: %v", err, err)
+		}
+		if !strings.Contains(err.Error(), "entry limit") {
+			t.Errorf("error message = %q, want mention of entry limit", err.Error())
 		}
 	}
 
