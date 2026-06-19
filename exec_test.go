@@ -926,6 +926,85 @@ func TestSetAddPrepareError(t *testing.T) {
 	}
 }
 
+// TestNestedScriptModule covers BOX-12 (STAR-14): a module script whose name
+// contains a directory (e.g. "lib/util.star") is materialized into the virtual
+// filesystem with its parent directories created first, so it can be load()ed
+// by its nested path. Before the fix, prepareEnv wrote a flat path and memfs
+// WriteFile failed because the intermediate directory did not exist.
+func TestNestedScriptModule(t *testing.T) {
+	t.Run("single level", func(t *testing.T) {
+		b := starbox.New("nested")
+		b.SetPrintFunc(noopPrint)
+		b.AddModuleScript("lib/util", hereDoc(`
+			def double(x):
+				return x * 2
+			answer = 42
+		`))
+		out, err := b.Run(hereDoc(`
+			load("lib/util.star", "double", "answer")
+			a = double(answer)
+		`))
+		if err != nil {
+			t.Fatalf("nested script module should load: %v", err)
+		}
+		if es := int64(84); out["a"] != es {
+			t.Errorf("expect a=%d, got %v", es, out["a"])
+		}
+	})
+
+	t.Run("deep level", func(t *testing.T) {
+		b := starbox.New("nested")
+		b.SetPrintFunc(noopPrint)
+		b.AddModuleScript("a/b/c/deep.star", hereDoc(`
+			value = "found"
+		`))
+		out, err := b.Run(hereDoc(`
+			load("a/b/c/deep.star", "value")
+			v = value
+		`))
+		if err != nil {
+			t.Fatalf("deeply nested script module should load: %v", err)
+		}
+		if es := "found"; out["v"] != es {
+			t.Errorf("expect v=%q, got %v", es, out["v"])
+		}
+	})
+
+	t.Run("sibling modules share directory", func(t *testing.T) {
+		// two modules under the same directory must both materialize: MkdirAll
+		// is idempotent, so the second WriteFile reuses the created directory.
+		b := starbox.New("nested")
+		b.SetPrintFunc(noopPrint)
+		b.AddModuleScript("pkg/one", hereDoc(`x = 1`))
+		b.AddModuleScript("pkg/two", hereDoc(`y = 2`))
+		out, err := b.Run(hereDoc(`
+			load("pkg/one.star", "x")
+			load("pkg/two.star", "y")
+			s = x + y
+		`))
+		if err != nil {
+			t.Fatalf("sibling nested modules should load: %v", err)
+		}
+		if es := int64(3); out["s"] != es {
+			t.Errorf("expect s=%d, got %v", es, out["s"])
+		}
+	})
+
+	t.Run("directory collides with existing file", func(t *testing.T) {
+		// "conflict" writes file "conflict.star"; "conflict.star/sub" then needs
+		// MkdirAll("conflict.star"), which fails because that path is already a
+		// file. Sorted materialization makes this deterministic - "conflict.star"
+		// is written before "conflict.star/sub.star" is processed.
+		b := starbox.New("nested")
+		b.SetPrintFunc(noopPrint)
+		b.AddModuleScript("conflict", hereDoc(`x = 1`))
+		b.AddModuleScript("conflict.star/sub", hereDoc(`y = 2`))
+		if _, err := b.Run(`z = 1`); err == nil {
+			t.Error("expected error when a module directory collides with an existing module file")
+		}
+	})
+}
+
 func TestSetAddRunError(t *testing.T) {
 	tests := []struct {
 		name string

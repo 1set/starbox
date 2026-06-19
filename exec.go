@@ -3,6 +3,8 @@ package starbox
 import (
 	"errors"
 	"fmt"
+	"path"
+	"sort"
 	"time"
 
 	"github.com/1set/starlet"
@@ -208,9 +210,23 @@ func (s *Starbox) prepareEnv() (err error) {
 	// prepare script modules
 	if len(s.scriptMods) > 0 && s.modFS == nil {
 		rootFS := memfs.New()
-		for fp, scr := range s.scriptMods {
-			// TODO: support directory/file.star later
-			if err := rootFS.WriteFile(fp, []byte(scr), 0644); err != nil {
+		// materialize in sorted name order so parent-directory creation and the
+		// resulting __modules__ ordering are deterministic, not map-iteration random.
+		fps := make([]string, 0, len(s.scriptMods))
+		for fp := range s.scriptMods {
+			fps = append(fps, fp)
+		}
+		sort.Strings(fps)
+		for _, fp := range fps {
+			// create parent directories first so a nested-path module script
+			// (e.g. "lib/util.star") writes into an existing tree - memfs
+			// WriteFile does not create intermediate directories on its own.
+			if dir := path.Dir(fp); dir != "." && dir != "/" {
+				if err := rootFS.MkdirAll(dir, 0755); err != nil {
+					return err
+				}
+			}
+			if err := rootFS.WriteFile(fp, []byte(s.scriptMods[fp]), 0644); err != nil {
 				return err
 			}
 			modNames = append(modNames, fp)
