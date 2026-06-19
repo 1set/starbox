@@ -55,6 +55,7 @@ type Starbox struct {
 	resultSet        bool
 	maxOutputEntries uint
 	policy           *Policy
+	console          *Console
 }
 
 // New creates a new Starbox instance with default settings.
