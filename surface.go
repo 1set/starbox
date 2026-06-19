@@ -68,7 +68,10 @@ func (s *Starbox) DescribeSurface() (Surface, error) {
 	seen := make(map[string]bool)
 	var mods []ModuleSurface
 	add := func(name string, origin ModuleOrigin, members []string) {
-		if name == "" || seen[name] {
+		// policy load gate (A4): a module the policy withholds is not part of
+		// the runnable surface, so it must not be reported either - the surface
+		// stays consistent with what a real Run would actually load.
+		if name == "" || seen[name] || !s.policyAllows(name) {
 			return
 		}
 		seen[name] = true

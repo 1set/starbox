@@ -218,6 +218,12 @@ func (s *Starbox) prepareEnv() (err error) {
 		}
 		sort.Strings(fps)
 		for _, fp := range fps {
+			// policy load gate (A4): a script module the policy does not permit
+			// is not materialized, so the script cannot load() it. Gated by the
+			// registered (.star) name, consistent with DescribeSurface.
+			if !s.policyAllows(fp) {
+				continue
+			}
 			// create parent directories first so a nested-path module script
 			// (e.g. "lib/util.star") writes into an existing tree - memfs
 			// WriteFile does not create intermediate directories on its own.

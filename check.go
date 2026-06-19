@@ -74,15 +74,24 @@ func (s *Starbox) predeclaredNames() (map[string]bool, error) {
 			pre[g] = true
 		}
 	}
+	// Policy load gate (A4): a module the policy withholds is not loadable at
+	// run time, so its names must not be predeclared either - otherwise Check
+	// would pass a name that a real Run rejects with ModuleWithheldError.
 	for _, n := range setNames {
-		addBuiltin(n)
+		if s.policyAllows(n) {
+			addBuiltin(n)
+		}
 	}
 	for _, n := range intersectStrings(fullModuleNames, s.namedMods) {
-		addBuiltin(n)
+		if s.policyAllows(n) {
+			addBuiltin(n)
+		}
 	}
 	// Custom modules are preloaded under their registered name.
 	for name := range s.loadMods {
-		pre[name] = true
+		if s.policyAllows(name) {
+			pre[name] = true
+		}
 	}
 	return pre, nil
 }
