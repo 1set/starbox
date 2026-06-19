@@ -189,13 +189,12 @@ func (c *RunnerConfig) Execute() (starlet.StringAnyMap, error) {
 	b.mac.SetScript(cfg.fileName, cfg.script, b.modFS)
 
 	// finally, run the script
-	b.hasExec = true
-	b.execTimes++
+	b.markRun()
 	out, err := b.mac.RunWithContext(cfg.ctx, cfg.extras)
 
 	// repl
 	if cfg.condREPL != nil && cfg.condREPL(out, err) {
 		b.mac.REPL()
 	}
-	return out, err
+	return b.applyOutputLimit(out, err)
 }

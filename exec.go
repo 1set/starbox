@@ -22,8 +22,7 @@ func (s *Starbox) Run(script string) (starlet.StringAnyMap, error) {
 	}
 
 	// run
-	s.hasExec = true
-	s.execTimes++
+	s.markRun()
 	return s.applyOutputLimit(s.mac.Run())
 }
 
@@ -38,8 +37,7 @@ func (s *Starbox) RunFile(file string) (starlet.StringAnyMap, error) {
 	}
 
 	// run
-	s.hasExec = true
-	s.execTimes++
+	s.markRun()
 	return s.applyOutputLimit(s.mac.RunFile(file, s.modFS, nil))
 }
 
@@ -54,8 +52,7 @@ func (s *Starbox) RunTimeout(script string, timeout time.Duration) (starlet.Stri
 	}
 
 	// run
-	s.hasExec = true
-	s.execTimes++
+	s.markRun()
 	return s.applyOutputLimit(s.mac.RunWithTimeout(timeout, nil))
 }
 
@@ -70,8 +67,7 @@ func (s *Starbox) REPL() error {
 	}
 
 	// run
-	s.hasExec = true
-	s.execTimes++
+	s.markRun()
 	s.mac.REPL()
 	return nil
 }
@@ -87,8 +83,7 @@ func (s *Starbox) RunInspect(script string) (starlet.StringAnyMap, error) {
 	}
 
 	// run script
-	s.hasExec = true
-	s.execTimes++
+	s.markRun()
 	out, err := s.mac.Run()
 
 	// repl
@@ -111,8 +106,7 @@ func (s *Starbox) RunInspectIf(script string, cond InspectCondFunc) (starlet.Str
 	}
 
 	// run script
-	s.hasExec = true
-	s.execTimes++
+	s.markRun()
 	out, err := s.mac.Run()
 
 	// repl
@@ -162,6 +156,16 @@ func (s *Starbox) applyOutputLimit(out starlet.StringAnyMap, err error) (starlet
 		return nil, OutputLimitExceededError{Limit: s.maxOutputEntries, Count: n}
 	}
 	return out, err
+}
+
+// markRun records the start of a run: it bumps the run counter and clears the
+// per-run result slot, so output() is once-PER-RUN (reset at each run start)
+// rather than once per Box lifetime. The caller holds s.mu.
+func (s *Starbox) markRun() {
+	s.hasExec = true
+	s.execTimes++
+	s.result = nil
+	s.resultSet = false
 }
 
 func (s *Starbox) prepareScriptEnv(script string) (err error) {
