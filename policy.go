@@ -13,6 +13,14 @@ import "github.com/1set/starlet"
 // never imports starpkg; they arrive as opaque loaders), so exec-gating lives
 // where the loaders are constructed (the host shell / starcli). Shipping inert
 // fs/net grant fields here would be a fail-open footgun, so they are omitted.
+//
+// The load gate covers every named-module path a script can load(): builtin
+// modules, custom modules (AddModule*), dynamic modules, and script modules
+// (AddModuleScript, matched by their registered ".star" name). It does NOT
+// gate SetFS: a host-mounted fs.FS is a raw, deliberate filesystem grant with
+// no module-name registry to match against, so a default-deny Box that also
+// calls SetFS exposes whatever that filesystem contains. Curate the mounted
+// FS (or do not call SetFS) when running under a restrictive policy.
 type Policy struct {
 	// Modules is the load gate: which module names a script may load.
 	Modules ModuleAllow
