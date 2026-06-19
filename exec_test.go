@@ -819,6 +819,12 @@ func TestSetAddRunPanic(t *testing.T) {
 				b.SetMaxOutputEntries(10)
 			},
 		},
+		{
+			name: "enable console capture",
+			fn: func(b *starbox.Starbox) {
+				b.EnableConsoleCapture()
+			},
+		},
 	}
 
 	for _, tt := range tests {
