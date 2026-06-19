@@ -9,6 +9,11 @@ import (
 )
 
 // ModuleSetName defines the name of a module set.
+//
+// When a script load()s a module that exists in Starlet but is not part of the
+// active set, the run fails with a ModuleWithheldError (reachable via
+// errors.As) - distinct from load()ing a non-existent module (a "not found"
+// error) and from referencing an undefined name (a resolve error).
 type ModuleSetName string
 
 const (
@@ -171,6 +176,13 @@ var (
 	// ErrModuleNotFound is the error for module cannot be found by name.
 	ErrModuleNotFound = errors.New("module not found")
 )
+
+// ModuleWithheldError reports that a script load()ed a module that exists in
+// Starlet but is not part of the Box's active module set. It is re-exported
+// from Starlet (the same type Starlet returns) so callers can match it via
+// errors.As without importing starlet directly. This is distinct from
+// ErrModuleNotFound, which marks a module that does not exist at all.
+type ModuleWithheldError = starlet.ModuleWithheldError
 
 // extractDynamicModules extracts dynamic module loaders by module names.
 func extractDynamicModules(metaLoad DynamicModuleLoader, nameMods []string, existMods map[string]struct{}) (preMods starlet.ModuleLoaderList, lazyMods starlet.ModuleLoaderMap, modNames []string, err error) {
