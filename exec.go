@@ -2,6 +2,7 @@ package starbox
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/1set/starlet"
@@ -21,7 +22,7 @@ func (s *Starbox) Run(script string) (starlet.StringAnyMap, error) {
 	// run
 	s.hasExec = true
 	s.execTimes++
-	return s.mac.Run()
+	return s.applyOutputLimit(s.mac.Run())
 }
 
 // RunFile executes a script file and returns the converted output.
@@ -37,7 +38,7 @@ func (s *Starbox) RunFile(file string) (starlet.StringAnyMap, error) {
 	// run
 	s.hasExec = true
 	s.execTimes++
-	return s.mac.RunFile(file, s.modFS, nil)
+	return s.applyOutputLimit(s.mac.RunFile(file, s.modFS, nil))
 }
 
 // RunTimeout executes a script and returns the converted output.
@@ -53,7 +54,7 @@ func (s *Starbox) RunTimeout(script string, timeout time.Duration) (starlet.Stri
 	// run
 	s.hasExec = true
 	s.execTimes++
-	return s.mac.RunWithTimeout(timeout, nil)
+	return s.applyOutputLimit(s.mac.RunWithTimeout(timeout, nil))
 }
 
 // REPL starts a REPL session.
@@ -90,7 +91,7 @@ func (s *Starbox) RunInspect(script string) (starlet.StringAnyMap, error) {
 
 	// repl
 	s.mac.REPL()
-	return out, err
+	return s.applyOutputLimit(out, err)
 }
 
 // InspectCondFunc is a function type for inspecting the converted output of Run*() and decide whether to continue.
@@ -116,7 +117,7 @@ func (s *Starbox) RunInspectIf(script string, cond InspectCondFunc) (starlet.Str
 	if cond(out, err) {
 		s.mac.REPL()
 	}
-	return out, err
+	return s.applyOutputLimit(out, err)
 }
 
 // CallStarlarkFunc executes a function defined in Starlark with arguments and returns the converted output.
@@ -131,6 +132,34 @@ func (s *Starbox) CallStarlarkFunc(name string, args ...interface{}) (interface{
 
 	// call it
 	return s.mac.Call(name, args...)
+}
+
+// OutputLimitExceededError marks a run whose result exceeded the configured
+// output-entry limit (SetMaxOutputEntries). It is reachable via errors.As and
+// is one of the typed run errors STAR-8's RunError taxonomy will classify.
+type OutputLimitExceededError struct {
+	Limit uint // the configured maximum number of result entries
+	Count uint // the number of result entries the run actually produced
+}
+
+// Error returns the error message.
+func (e OutputLimitExceededError) Error() string {
+	return fmt.Sprintf("output exceeded the entry limit (%d > %d)", e.Count, e.Limit)
+}
+
+// applyOutputLimit enforces the configured max output-entry count on a
+// successful run's result: a result with more than the limit entries is
+// withheld and a typed OutputLimitExceededError is returned instead. A zero
+// limit (the default) means unlimited. It is a post-hoc policy gate on the
+// result, not a memory guard - SetMaxExecutionSteps bounds resource use.
+func (s *Starbox) applyOutputLimit(out starlet.StringAnyMap, err error) (starlet.StringAnyMap, error) {
+	if err != nil || s.maxOutputEntries == 0 {
+		return out, err
+	}
+	if n := uint(len(out)); n > s.maxOutputEntries {
+		return nil, OutputLimitExceededError{Limit: s.maxOutputEntries, Count: n}
+	}
+	return out, err
 }
 
 func (s *Starbox) prepareScriptEnv(script string) (err error) {

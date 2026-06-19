@@ -1101,3 +1101,67 @@ func TestUserLoggerModuleLoader(t *testing.T) {
 		t.Error("expect not nil, got nil")
 	}
 }
+
+// TestExecutionBudget tests the step-budget guard (STAR-6 / BOX-01):
+//  1. a small budget aborts a runaway loop with a typed MaxStepsExceededError;
+//  2. zero means unlimited.
+func TestExecutionBudget(t *testing.T) {
+	b := starbox.New("budget")
+	b.SetPrintFunc(noopPrint)
+	if s := b.GetSteps(); s != 0 {
+		t.Errorf("a fresh box should report 0 steps, got %d", s)
+	}
+	b.SetMaxExecutionSteps(1000)
+	_, err := b.Run(hereDoc(`
+		s = 0
+		for i in range(100000000):
+			s += i
+	`))
+	if err == nil {
+		t.Fatal("expected step-budget error, got nil")
+	}
+	var me starlet.MaxStepsExceededError
+	if !errors.As(err, &me) {
+		t.Errorf("want MaxStepsExceededError, got %T: %v", err, err)
+	}
+
+	// Zero means unlimited: a small script completes normally.
+	b2 := starbox.New("budget-unlimited")
+	b2.SetPrintFunc(noopPrint)
+	b2.SetMaxExecutionSteps(0)
+	if _, err := b2.Run(hereDoc(`x = 1 + 2`)); err != nil {
+		t.Errorf("unlimited budget: unexpected error %v", err)
+	}
+}
+
+// TestOutputLimit tests the output-entry cap (STAR-6 / BOX-01): a run whose
+// result exceeds the limit is withheld with a typed error; a generous limit
+// passes through.
+func TestOutputLimit(t *testing.T) {
+	b := starbox.New("outlimit")
+	b.SetPrintFunc(noopPrint)
+	b.SetMaxOutputEntries(2)
+	if _, err := b.Run(hereDoc("a = 1\nb = 2\nc = 3\nd = 4")); err == nil {
+		t.Fatal("expected output-entry-limit error, got nil")
+	} else {
+		var oe starbox.OutputLimitExceededError
+		if !errors.As(err, &oe) {
+			t.Errorf("want OutputLimitExceededError, got %T: %v", err, err)
+		}
+		if !strings.Contains(err.Error(), "entry limit") {
+			t.Errorf("error message = %q, want mention of entry limit", err.Error())
+		}
+	}
+
+	// A generous limit lets the result through unchanged.
+	b2 := starbox.New("outlimit-ok")
+	b2.SetPrintFunc(noopPrint)
+	b2.SetMaxOutputEntries(50)
+	out, err := b2.Run(hereDoc("a = 1\nb = 2"))
+	if err != nil {
+		t.Fatalf("under limit: %v", err)
+	}
+	if out["a"] != int64(1) {
+		t.Errorf("want a=1, got %v (%T)", out["a"], out["a"])
+	}
+}
