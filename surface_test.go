@@ -6,6 +6,7 @@ package starbox_test
 //   - TestDescribeSurfaceGlobals       global name + type reporting
 //   - TestDescribeSurfaceScriptDynamic script (.star) and dynamic modules report name-only
 //   - TestDescribeSurfaceSideEffectFree no script run; configuration and a later Run still work
+//   - TestDescribeSurfaceDedupNamedBuiltin AddNamedModules builtins: overlap dedups, new name appears once
 
 import (
 	"reflect"
@@ -213,5 +214,34 @@ func TestDescribeSurfaceEdges(t *testing.T) {
 	}
 	if !found {
 		t.Error("nil global zilch missing from surface")
+	}
+}
+
+// TestDescribeSurfaceDedupNamedBuiltin covers the AddNamedModules-of-builtins
+// paths: a name that overlaps the active set must appear exactly once (the
+// dedup guard), and a named builtin outside the set must be reported once.
+func TestDescribeSurfaceDedupNamedBuiltin(t *testing.T) {
+	b := starbox.New("surface-named")
+	b.SetModuleSet(starbox.SafeModuleSet) // includes math, not http
+	b.AddNamedModules("math", "http")     // math overlaps (dedup); http is a new named builtin
+
+	sf, err := b.DescribeSurface()
+	if err != nil {
+		t.Fatalf("DescribeSurface: %v", err)
+	}
+
+	count := map[string]int{}
+	for _, m := range sf.Modules {
+		count[m.Name]++
+	}
+	if count["math"] != 1 {
+		t.Errorf("math should appear once (dedup across set + named), got %d", count["math"])
+	}
+	if count["http"] != 1 {
+		t.Errorf("http (named builtin outside the set) should appear once, got %d", count["http"])
+	}
+	// the overlapping name keeps its builtin origin.
+	if m, ok := findModule(sf, "math"); !ok || m.Origin != starbox.OriginBuiltin {
+		t.Errorf("math origin = %v (found=%v), want OriginBuiltin", m.Origin, ok)
 	}
 }
