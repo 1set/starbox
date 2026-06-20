@@ -67,6 +67,75 @@ This may output:
 Go: Hello, Starbox!
 ```
 
+## 🔒 Security Model & Capability Gating
+
+Starbox is a **host runtime**: the Go host decides what an untrusted script may reach, and the script cannot widen that grant. The control surface has two distinct layers — Starbox implements the first; the second lives at the layer that constructs the modules.
+
+### Load gate — which modules a script may `load()`
+
+`New` selects modules through a four-tier module set (`EmptyModuleSet`, `SafeModuleSet`, `NetworkModuleSet`, `FullModuleSet`); `SafeModuleSet` is an explicit, hand-curated allowlist that can reach **neither the network nor the filesystem**.
+
+For stricter, host-declared control, construct the box with a `Policy` — a Go-side, **default-deny** allowlist the script can neither read nor mutate:
+
+```go
+// Only "math" and "json" are loadable, no matter what the module set requests.
+box := starbox.NewWithPolicy("sandboxed", starbox.Policy{
+    Modules: starbox.ModuleAllow{Names: []string{"math", "json"}},
+})
+box.SetModuleSet(starbox.FullModuleSet) // requested set is INTERSECTED with the policy
+```
+
+- The **zero** `Policy{}` permits nothing — strict default-deny by construction.
+- `ModuleAllow.Capabilities` is opt-in capability widening: a non-zero tier (e.g. `starlet.CapNetwork`) permits every builtin whose capability set is a subset of it.
+- The gate covers **every named-module path** a script can load: builtin, custom (`AddModule*`), dynamic, and script modules (`AddModuleScript`, matched by their registered `.star` name).
+- A withheld **builtin** surfaces a typed `ModuleWithheldError` (matchable via `errors.As`). A policy-denied **non-builtin** (custom/dynamic/script) module is simply absent — `load()` fails as "not found", so the sandbox is not told a host-private module exists but is forbidden.
+
+> **`SetFS` is an explicit exception.** A host-mounted `fs.FS` is a raw filesystem grant with no module-name registry to match against, so it is **not** governed by the load gate. Under a restrictive policy, curate the mounted filesystem (or do not call `SetFS`).
+
+### Exec gate — what a loaded module may *do* — is NOT in Starbox
+
+Per-call filesystem / network / command / secret gating (what a *loaded* module is allowed to actually do) is **out of scope for Starbox**: it never imports the domain modules, which arrive as opaque loaders, so exec-gating belongs where those loaders are constructed (the host shell / CLI). Starbox ships the load gate only; it does not ship inert exec-grant fields that would be a fail-open footgun.
+
+## 📏 Execution Budgets & Output Limits
+
+```go
+box.SetMaxExecutionSteps(1_000_000) // bound runaway loops a wall-clock timeout cannot stop
+box.SetMaxOutputEntries(100)        // cap the number of top-level result entries
+```
+
+A run that exceeds the step budget fails with a `starlet.MaxStepsExceededError`; one that produces too many result entries is withheld with an `OutputLimitExceededError`. Both are reachable via `errors.As`, and both are enforced on **every** run path (`Run`, `RunFile`, `RunTimeout`, `RunInspect*`, and the `RunnerConfig.Execute()` builder).
+
+## 🔎 Inspection without Execution
+
+Learn what a script *would* see, and catch problems, without running it:
+
+```go
+diags, _ := box.Check(script)            // []Diagnostic: syntax + resolve errors as "file:line:col: msg"
+surface, _ := box.DescribeSurface()      // Surface: modules (name/origin/members) + globals (name/type)
+```
+
+Both honor the active `Policy` — they report and accept exactly the modules a real `Run` would load, never a wider surface.
+
+## 📤 Structured Results & Console Capture
+
+```go
+box.AddResultBuiltin("output")           // script calls output(v) once per run to set its result
+res, _ := box.Run(`output({"ok": True})`)
+val, ok := box.GetResult()               // the captured value; reset at the start of every run
+
+con := box.EnableConsoleCapture()        // funnel console output into a drainable buffer instead of stderr
+box.Run(`print("hi")`)
+for _, e := range con.Drain() {          // []ConsoleEntry: Time, Level, Message, structured Fields
+    fmt.Println(e.Level, e.Message, e.Fields)
+}
+```
+
+`print()` becomes a `LevelPrint` entry; when the `log` module is loaded, `log.*` calls become leveled entries whose keyword arguments are preserved as structured `Fields` (never pre-rendered into the message). `Drain` returns the buffered entries and clears them, for a per-run drain.
+
+## 🧩 Typed Errors
+
+Run failures carry typed, `errors.As`-matchable causes, and `ClassifyRunError` maps any run failure to a `RunError{Kind}` (`Syntax`, `Compile`, `ModuleWithheld`, `MaxSteps`, `OutputLimit`, `Eval`) for uniform host handling.
+
 ## 👥 Contributing
 
 We welcome contributions to the *Starbox* project. If you encounter any issues or have suggestions for improvements, please feel free to open an issue or submit a pull request. Before undertaking any significant changes, please let us know by filing an issue or claiming an existing one to ensure there is no duplication of effort.

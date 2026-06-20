@@ -192,6 +192,13 @@ var (
 // from Starlet (the same type Starlet returns) so callers can match it via
 // errors.As without importing starlet directly. This is distinct from
 // ErrModuleNotFound, which marks a module that does not exist at all.
+//
+// Policy interaction (contract): a withheld error is surfaced for a known
+// builtin that the active module set or the Policy excludes. A NON-builtin
+// module (custom, dynamic, or script) that the Policy denies is simply not
+// registered, so load()ing it fails as "not found" rather than as a withheld
+// error - the sandbox is deliberately not told that a host-private module
+// exists but is forbidden.
 type ModuleWithheldError = starlet.ModuleWithheldError
 
 // extractDynamicModules extracts dynamic module loaders by module names.
