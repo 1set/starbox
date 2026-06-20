@@ -1,21 +1,21 @@
-package starbox_test
+package starbox
 
-// console capture (BOX-06 / STAR-13) tests:
+// console capture (BOX-06 / STAR-13) tests. This is an internal (white-box)
+// test file so the public API and the unexported consoleCore live in one place:
 //   - TestConsoleCapturePrint   print() funnels into LevelPrint entries, no fields
 //   - TestConsoleCaptureLog     log.* funnels into leveled entries; kwargs kept as raw Fields
 //   - TestConsoleCaptureOrder   print and log interleave in script call order
 //   - TestConsoleDrainPerRun    Drain returns then clears; successive runs accumulate independently
 //   - TestConsoleNotEnabled     Console() is nil until EnableConsoleCapture
+//   - TestConsoleCoreWithAndSync consoleCore With/Sync internals the log module never drives
 
 import (
 	"fmt"
 	"testing"
-
-	"github.com/1set/starbox"
 )
 
 // fieldMap flattens captured fields to a lookup keyed by field name.
-func fieldMap(fs []starbox.ConsoleField) map[string]interface{} {
+func fieldMap(fs []ConsoleField) map[string]interface{} {
 	m := make(map[string]interface{}, len(fs))
 	for _, f := range fs {
 		m[f.Key] = f.Value
@@ -24,9 +24,9 @@ func fieldMap(fs []starbox.ConsoleField) map[string]interface{} {
 }
 
 func TestConsoleCapturePrint(t *testing.T) {
-	b := starbox.New("cap")
+	b := New("cap")
 	con := b.EnableConsoleCapture()
-	if _, err := b.Run(hereDoc(`
+	if _, err := b.Run(HereDoc(`
 		print("hello")
 		print("world")
 	`)); err != nil {
@@ -37,8 +37,8 @@ func TestConsoleCapturePrint(t *testing.T) {
 		t.Fatalf("want 2 entries, got %d: %+v", len(got), got)
 	}
 	for i, want := range []string{"hello", "world"} {
-		if got[i].Level != starbox.LevelPrint {
-			t.Errorf("entry %d: level = %q, want %q", i, got[i].Level, starbox.LevelPrint)
+		if got[i].Level != LevelPrint {
+			t.Errorf("entry %d: level = %q, want %q", i, got[i].Level, LevelPrint)
 		}
 		if got[i].Message != want {
 			t.Errorf("entry %d: message = %q, want %q", i, got[i].Message, want)
@@ -56,10 +56,10 @@ func TestConsoleCapturePrint(t *testing.T) {
 }
 
 func TestConsoleCaptureLog(t *testing.T) {
-	b := starbox.New("cap")
+	b := New("cap")
 	b.AddNamedModules("log")
 	con := b.EnableConsoleCapture()
-	if _, err := b.Run(hereDoc(`
+	if _, err := b.Run(HereDoc(`
 		log.info("hi", user="alice", count=3)
 		log.error("boom")
 	`)); err != nil {
@@ -95,10 +95,10 @@ func TestConsoleCaptureLog(t *testing.T) {
 }
 
 func TestConsoleCaptureOrder(t *testing.T) {
-	b := starbox.New("cap")
+	b := New("cap")
 	b.AddNamedModules("log")
 	con := b.EnableConsoleCapture()
-	if _, err := b.Run(hereDoc(`
+	if _, err := b.Run(HereDoc(`
 		print("a")
 		log.warn("b")
 		print("c")
@@ -107,9 +107,9 @@ func TestConsoleCaptureOrder(t *testing.T) {
 	}
 	got := con.Drain()
 	want := []struct{ level, msg string }{
-		{starbox.LevelPrint, "a"},
+		{LevelPrint, "a"},
 		{"warn", "b"},
-		{starbox.LevelPrint, "c"},
+		{LevelPrint, "c"},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("want %d entries, got %d: %+v", len(want), len(got), got)
@@ -122,7 +122,7 @@ func TestConsoleCaptureOrder(t *testing.T) {
 }
 
 func TestConsoleDrainPerRun(t *testing.T) {
-	b := starbox.New("cap")
+	b := New("cap")
 	con := b.EnableConsoleCapture()
 
 	if _, err := b.Run(`print("run1")`); err != nil {
@@ -147,8 +147,37 @@ func TestConsoleDrainPerRun(t *testing.T) {
 }
 
 func TestConsoleNotEnabled(t *testing.T) {
-	b := starbox.New("cap")
+	b := New("cap")
 	if b.Console() != nil {
 		t.Errorf("Console() should be nil before EnableConsoleCapture")
+	}
+}
+
+// TestConsoleCoreWithAndSync covers the consoleCore zapcore.Core internals the
+// script-facing log module never drives directly: With (context fields merged
+// ahead of call-site fields) and Sync (no-op).
+func TestConsoleCoreWithAndSync(t *testing.T) {
+	c := &Console{}
+	lg := newConsoleLogger(c)
+
+	// With() attaches context fields that must appear on every later entry,
+	// merged ahead of the call-site fields.
+	lg.With("ctx", "base").Infow("msg", "k", "v")
+
+	got := c.Drain()
+	if len(got) != 1 {
+		t.Fatalf("want 1 entry, got %d: %+v", len(got), got)
+	}
+	fm := fieldMap(got[0].Fields)
+	if fm["ctx"] != "base" {
+		t.Errorf("context field ctx = %v, want base", fm["ctx"])
+	}
+	if fm["k"] != "v" {
+		t.Errorf("call field k = %v, want v", fm["k"])
+	}
+
+	// Sync is a no-op and must not error.
+	if err := lg.Sync(); err != nil {
+		t.Errorf("Sync: %v", err)
 	}
 }
