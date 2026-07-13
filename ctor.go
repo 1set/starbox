@@ -54,6 +54,9 @@ type Starbox struct {
 	result           starlark.Value
 	resultSet        bool
 	maxOutputEntries uint
+	maxSteps         uint64
+	scriptCache      starlet.ByteCache
+	scriptCacheSet   bool
 	policy           *Policy
 	console          *Console
 }
@@ -113,6 +116,13 @@ func (s *Starbox) Reset() {
 	//s.mac.Reset()
 	s.mac = newStarMachine(s.name)
 	s.hasExec = false
+	// Re-apply the Box-level limits/cache to the fresh machine eagerly, not
+	// lazily at the next run: newStarMachine defaults to no step budget and an
+	// enabled cache, so without this a caller that reaches for the raw machine
+	// via GetMachine right after Reset would see the guard dropped. This keeps
+	// Reset's "keeps the Box's limits" contract true for the machine itself.
+	s.mac.SetMaxExecutionSteps(s.maxSteps)
+	s.applyScriptCache()
 }
 
 // GetMachine returns the underlying starlet.Machine instance.
@@ -148,6 +158,12 @@ func (s *Starbox) SetMaxExecutionSteps(steps uint64) {
 	if s.hasExec {
 		log.DPanic("cannot set max execution steps after execution")
 	}
+	// Store on the Box, not only on the current machine: Reset() swaps in a
+	// fresh machine (which defaults to unlimited), so a machine-only budget
+	// vanished after the first run — dropping the CPU-DoS guard on exactly the
+	// serial-reuse path Reset exists for. Reset re-applies s.maxSteps to the
+	// fresh machine, the same way maxOutputEntries survives Reset.
+	s.maxSteps = steps
 	s.mac.SetMaxExecutionSteps(steps)
 }
 
@@ -238,10 +254,24 @@ func (s *Starbox) SetScriptCache(cache starlet.ByteCache) {
 	if s.hasExec {
 		log.DPanic("cannot set script cache after execution")
 	}
-	if cache == nil {
+	// Store on the Box too, so the choice survives Reset: newStarMachine always
+	// enables the cache, so a machine-only SetScriptCache(nil) was re-enabled
+	// after Reset. Reset re-applies the stored choice to the fresh machine.
+	s.scriptCache = cache
+	s.scriptCacheSet = true
+	s.applyScriptCache()
+}
+
+// applyScriptCache applies the Box's script-cache choice to the current
+// machine. The caller holds s.mu.
+func (s *Starbox) applyScriptCache() {
+	if !s.scriptCacheSet {
+		return
+	}
+	if s.scriptCache == nil {
 		s.mac.SetScriptCacheEnabled(false)
 	} else {
-		s.mac.SetScriptCache(cache)
+		s.mac.SetScriptCache(s.scriptCache)
 	}
 }
 

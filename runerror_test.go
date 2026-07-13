@@ -106,3 +106,23 @@ func TestRunErrorPassthrough(t *testing.T) {
 		t.Error("errors.As should reach MaxStepsExceededError through the RunError")
 	}
 }
+
+func TestMaxExecutionStepsSurvivesReset(t *testing.T) {
+	// The step budget must survive Reset. Reset's doc promises it keeps the
+	// Box's limits, and Reset is the sanctioned way to serially reuse one Box on
+	// untrusted scripts — so silently dropping the CPU-DoS guard after the first
+	// run is exactly the dangerous case a security-minded host would hit.
+	loop := hereDoc("s = 0\nfor i in range(100000000):\n\ts += i")
+	b := starbox.New("reset-budget")
+	b.SetPrintFunc(noopPrint)
+	b.SetMaxExecutionSteps(1000)
+
+	var mse starlet.MaxStepsExceededError
+	if _, err := b.Run(loop); !errors.As(err, &mse) {
+		t.Fatalf("first run: expected MaxStepsExceededError, got %v", err)
+	}
+	b.Reset()
+	if _, err := b.Run(loop); !errors.As(err, &mse) {
+		t.Fatalf("after Reset the step budget was dropped; expected MaxStepsExceededError, got %v", err)
+	}
+}
