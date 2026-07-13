@@ -848,6 +848,50 @@ func TestSetAddRunPanic(t *testing.T) {
 			tt.fn(box)
 		})
 	}
+
+	// Under the default (Nop) logger the SAME post-execution setters must be
+	// silently rejected (fail-closed), not panic: deniedAfterExec's DPanic is a
+	// no-op there, so it returns true and each setter bails at its guard without
+	// applying. This exercises every setter's guard-return branch — the dev-logger
+	// pass above panics INSIDE the guard, so it never reaches the setter's return.
+	for _, tt := range tests {
+		t.Run("ignored_"+tt.name, func(t *testing.T) {
+			b := starbox.New("test")
+			if _, err := b.Run(`z = 123`); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			starbox.SetLog(zap.NewNop().Sugar()) // silent default logger: no panic
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("expected silent no-op, got panic: %v", r)
+				}
+			}()
+			tt.fn(b)
+		})
+	}
+}
+
+func TestSetterAfterExecIsFailClosed(t *testing.T) {
+	// Under the default (Nop) logger the after-execution guard's DPanic neither
+	// panics nor logs, so before the fix a post-execution setter silently
+	// applied its change. It must instead be rejected (fail-closed): here a
+	// post-execution SetMaxOutputEntries(1) is ignored, so a later 3-entry run
+	// still succeeds instead of tripping the output limit that a fail-open apply
+	// would have installed.
+	starbox.SetLog(zap.NewNop().Sugar()) // ensure the silent default logger
+	b := starbox.New("fail-closed")
+	b.SetPrintFunc(noopPrint)
+	if _, err := b.Run(`a = 1`); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	b.SetMaxOutputEntries(1) // after execution -> must be ignored, not applied
+	out, err := b.Run("x = 1\ny = 2\nz = 3")
+	if err != nil {
+		t.Fatalf("post-exec SetMaxOutputEntries was wrongly applied (fail-open): %v", err)
+	}
+	if len(out) < 3 {
+		t.Fatalf("expected at least 3 outputs, got %v", out)
+	}
 }
 
 func TestSetAddPrepareError(t *testing.T) {

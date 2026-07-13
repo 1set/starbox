@@ -93,6 +93,21 @@ func newStarMachine(name string) *starlet.Machine {
 	return m
 }
 
+// deniedAfterExec reports whether a configuration change must be rejected
+// because the Box has already executed. It logs the misuse through the package
+// logger (which panics under a development logger, per the setters' contract)
+// and returns true so the caller bails out WITHOUT applying the change. The
+// return is what enforces the contract fail-closed: the default logger is a
+// no-op zap logger whose DPanic neither panics nor logs, so before this the
+// guard was silent and the change landed anyway. The caller holds s.mu.
+func (s *Starbox) deniedAfterExec(action string) bool {
+	if s.hasExec {
+		log.DPanic("cannot " + action + " after execution")
+		return true
+	}
+	return false
+}
+
 // String returns the name of the Starbox instance.
 func (s *Starbox) String() string {
 	return fmt.Sprintf("🥡Box{name:%s,run:%d}", s.name, s.execTimes)
@@ -150,13 +165,13 @@ func (s *Starbox) GetSteps() uint64 {
 // 0 (the default) means unlimited. When a run exceeds the budget, Run/Call fail
 // with a starlet.MaxStepsExceededError reachable via errors.As — the standard
 // guard against a runaway loop that a wall-clock timeout cannot stop. The step
-// counter resets at the start of every run. It panics if called after execution.
+// counter resets at the start of every run. Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) SetMaxExecutionSteps(steps uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot set max execution steps after execution")
+	if s.deniedAfterExec("set max execution steps") {
+		return
 	}
 	// Store on the Box, not only on the current machine: Reset() swaps in a
 	// fresh machine (which defaults to unlimited), so a machine-only budget
@@ -171,14 +186,15 @@ func (s *Starbox) SetMaxExecutionSteps(steps uint64) {
 // result may contain; 0 (the default) means unlimited. A run that produces more
 // is aborted with an OutputLimitExceededError (reachable via errors.As) and its
 // result is withheld. This is a post-hoc policy gate on result size, not a
-// memory guard - use SetMaxExecutionSteps to bound resource use. It panics if
-// called after execution.
+// memory guard - use SetMaxExecutionSteps to bound resource use. Calling it
+// after execution is rejected: the change is ignored, and it panics under a
+// development logger.
 func (s *Starbox) SetMaxOutputEntries(n uint) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot set max output entries after execution")
+	if s.deniedAfterExec("set max output entries") {
+		return
 	}
 	s.maxOutputEntries = n
 }
@@ -196,51 +212,51 @@ func (s *Starbox) SetLogger(sl *zap.SugaredLogger) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot set logger after execution")
+	if s.deniedAfterExec("set logger") {
+		return
 	}
 	s.userLog = sl
 }
 
 // SetStructTag sets the custom tag of Go struct fields for Starlark.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) SetStructTag(tag string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot set tag after execution")
+	if s.deniedAfterExec("set tag") {
+		return
 	}
 	s.structTag = tag
 }
 
 // SetPrintFunc sets the print function for Starlark.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) SetPrintFunc(printFunc starlet.PrintFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot set print function after execution")
+	if s.deniedAfterExec("set print function") {
+		return
 	}
 	s.printFunc = printFunc
 }
 
 // SetFS sets the virtual filesystem for module scripts.
 // If it's not nil, it'll override all the scripts added by AddModuleScript().
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) SetFS(hfs fs.FS) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot set filesystem after execution")
+	if s.deniedAfterExec("set filesystem") {
+		return
 	}
 	s.modFS = hfs
 }
 
 // SetScriptCache sets a custom cache provider for compiled script content; a
-// nil provider disables the script cache. It panics if called after execution.
+// nil provider disables the script cache. Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 //
 // Hot-path / concurrency recommendation: a single starlet.MemoryCache
 // (NewMemoryCache, which is safe for concurrent use) shared across many per-run
@@ -251,8 +267,8 @@ func (s *Starbox) SetScriptCache(cache starlet.ByteCache) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot set script cache after execution")
+	if s.deniedAfterExec("set script cache") {
+		return
 	}
 	// Store on the Box too, so the choice survives Reset: newStarMachine always
 	// enables the cache, so a machine-only SetScriptCache(nil) was re-enabled
@@ -276,38 +292,38 @@ func (s *Starbox) applyScriptCache() {
 }
 
 // SetDynamicModuleLoader sets the dynamic module loader for preload and lazyload modules.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) SetDynamicModuleLoader(loader DynamicModuleLoader) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot set dynamic module loader after execution")
+	if s.deniedAfterExec("set dynamic module loader") {
+		return
 	}
 	s.dynMods = loader
 }
 
 // SetModuleSet sets the module set to be loaded before execution.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) SetModuleSet(modSet ModuleSetName) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot set module set after execution")
+	if s.deniedAfterExec("set module set") {
+		return
 	}
 	s.modSet = modSet
 }
 
 // AddKeyValue adds a key-value pair to the global environment before execution.
 // If the key already exists, it will be overwritten.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddKeyValue(key string, value interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add key-value pair after execution")
+	if s.deniedAfterExec("add key-value pair") {
+		return
 	}
 	if s.globals == nil {
 		s.globals = make(starlet.StringAnyMap)
@@ -317,13 +333,13 @@ func (s *Starbox) AddKeyValue(key string, value interface{}) {
 
 // AddKeyStarlarkValue adds a key-value pair to the global environment before execution, the value is a Starlark value.
 // If the key already exists, it will be overwritten.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddKeyStarlarkValue(key string, value starlark.Value) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add key-value pair after execution")
+	if s.deniedAfterExec("add key-value pair") {
+		return
 	}
 	if s.globals == nil {
 		s.globals = make(starlet.StringAnyMap)
@@ -333,13 +349,13 @@ func (s *Starbox) AddKeyStarlarkValue(key string, value starlark.Value) {
 
 // AddKeyValues adds key-value pairs to the global environment before execution. Usually for output of Run()*.
 // For each key-value pair, if the key already exists, it will be overwritten.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddKeyValues(keyValues starlet.StringAnyMap) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add key-value pairs after execution")
+	if s.deniedAfterExec("add key-value pairs") {
+		return
 	}
 	if s.globals == nil {
 		s.globals = make(starlet.StringAnyMap)
@@ -349,13 +365,13 @@ func (s *Starbox) AddKeyValues(keyValues starlet.StringAnyMap) {
 
 // AddStarlarkValues adds key-value pairs to the global environment before execution, the values are already converted to Starlark values.
 // For each key-value pair, if the key already exists, it will be overwritten.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddStarlarkValues(keyValues starlark.StringDict) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add key-value pairs after execution")
+	if s.deniedAfterExec("add key-value pairs") {
+		return
 	}
 	if s.globals == nil {
 		s.globals = make(starlet.StringAnyMap)
@@ -367,13 +383,13 @@ func (s *Starbox) AddStarlarkValues(keyValues starlark.StringDict) {
 
 // AddBuiltin adds a builtin function with name to the global environment before execution.
 // If the name already exists, it will be overwritten.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddBuiltin(name string, starFunc StarlarkFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add builtin after execution")
+	if s.deniedAfterExec("add builtin") {
+		return
 	}
 	if s.globals == nil {
 		s.globals = make(starlet.StringAnyMap)
@@ -384,13 +400,13 @@ func (s *Starbox) AddBuiltin(name string, starFunc StarlarkFunc) {
 
 // AddNamedModules adds builtin and custom modules by name to the preload and lazyload registry.
 // It will not load the modules until the first run.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddNamedModules(moduleNames ...string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add named modules after execution")
+	if s.deniedAfterExec("add named modules") {
+		return
 	}
 	s.namedMods = append(s.namedMods, moduleNames...)
 }
@@ -402,13 +418,13 @@ func (s *Starbox) AddModulesByName(moduleNames ...string) {
 
 // AddModuleLoader adds a custom module loader to the preload and lazyload registry.
 // It will not load the module until the first run, and load result can be accessed in script via load("module_name", "key1") or key1 directly.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddModuleLoader(moduleName string, moduleLoader starlet.ModuleLoader) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add module loader after execution")
+	if s.deniedAfterExec("add module loader") {
+		return
 	}
 	if s.loadMods == nil {
 		s.loadMods = make(map[string]starlet.ModuleLoader)
@@ -419,13 +435,13 @@ func (s *Starbox) AddModuleLoader(moduleName string, moduleLoader starlet.Module
 // AddModuleFunctions adds a module with the given module functions along with a module loader, and adds it to the preload and lazyload registry.
 // The given module function can be accessed in script via load("module_name", "func1") or module_name.func1.
 // It works like AddModuleData() but allows only functions as values.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddModuleFunctions(name string, funcs FuncMap) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add module function after execution")
+	if s.deniedAfterExec("add module function") {
+		return
 	}
 	if s.loadMods == nil {
 		s.loadMods = make(map[string]starlet.ModuleLoader)
@@ -440,13 +456,13 @@ func (s *Starbox) AddModuleFunctions(name string, funcs FuncMap) {
 
 // AddModuleData creates a module for the given module data along with a module loader, and adds it to the preload and lazyload registry.
 // The given module data can be accessed in script via load("module_name", "key1") or module_name.key1.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddModuleData(moduleName string, moduleData starlark.StringDict) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add module data after execution")
+	if s.deniedAfterExec("add module data") {
+		return
 	}
 	if s.loadMods == nil {
 		s.loadMods = make(map[string]starlet.ModuleLoader)
@@ -458,13 +474,13 @@ func (s *Starbox) AddModuleData(moduleName string, moduleData starlark.StringDic
 // AddStructFunctions adds a module with the given struct functions along with a module loader, and adds it to the preload and lazyload registry.
 // The given struct function can be accessed in script via load("struct_name", "func1") or struct_name.func1.
 // It works like AddStructData() but allows only functions as values.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddStructFunctions(name string, funcs FuncMap) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add struct function after execution")
+	if s.deniedAfterExec("add struct function") {
+		return
 	}
 	if s.loadMods == nil {
 		s.loadMods = make(map[string]starlet.ModuleLoader)
@@ -479,13 +495,13 @@ func (s *Starbox) AddStructFunctions(name string, funcs FuncMap) {
 
 // AddStructData creates a module for the given struct data along with a module loader, and adds it to the preload and lazyload registry.
 // The given struct data can be accessed in script via load("struct_name", "key1") or struct_name.key1.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddStructData(structName string, structData starlark.StringDict) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add struct data after execution")
+	if s.deniedAfterExec("add struct data") {
+		return
 	}
 	if s.loadMods == nil {
 		s.loadMods = make(map[string]starlet.ModuleLoader)
@@ -497,13 +513,13 @@ func (s *Starbox) AddStructData(structName string, structData starlark.StringDic
 // AddModuleScript creates a module with given module script in virtual filesystem, and adds it to the preload and lazyload registry.
 // The given module script can be accessed in script via load("module_name", "key1") or load("module_name.star", "key1") if module name has no ".star" suffix.
 // All the module scripts added by this method would be overridden by SetFS() if it's not nil.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddModuleScript(moduleName, moduleScript string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add module script after execution")
+	if s.deniedAfterExec("add module script") {
+		return
 	}
 	if s.scriptMods == nil {
 		s.scriptMods = make(map[string]string)
@@ -517,13 +533,13 @@ func (s *Starbox) AddModuleScript(moduleName, moduleScript string) {
 
 // AddHTTPContext adds HTTP request and response data wrapper to the global environment before execution.
 // It takes an HTTP request and returns the response data wrapper for setting response headers and body.
-// It panics if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddHTTPContext(req *http.Request) *libhttp.ServerResponse {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add HTTP context after execution")
+	if s.deniedAfterExec("add HTTP context") {
+		return nil
 	}
 	if s.globals == nil {
 		s.globals = make(starlet.StringAnyMap)
