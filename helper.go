@@ -26,8 +26,8 @@ func (s *Starbox) AttachMemory(name string, memory *dataconv.SharedDict) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add memory after execution")
+	if s.deniedAfterExec("add memory") {
+		return
 	}
 	if s.globals == nil {
 		s.globals = make(starlet.StringAnyMap)
@@ -40,8 +40,8 @@ func (s *Starbox) CreateMemory(name string) *dataconv.SharedDict {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add memory after execution")
+	if s.deniedAfterExec("add memory") {
+		return nil
 	}
 	if s.globals == nil {
 		s.globals = make(starlet.StringAnyMap)

@@ -12,13 +12,13 @@ import (
 // a run is an error, so a script cannot ambiguously "return" twice. Retrieve the
 // captured value after a run with GetResult.
 //
-// It panics (DPanic) if called after execution.
+// Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) AddResultBuiltin(name string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot add result builtin after execution")
+	if s.deniedAfterExec("add result builtin") {
+		return
 	}
 	if s.globals == nil {
 		s.globals = make(starlet.StringAnyMap)

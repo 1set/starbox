@@ -140,13 +140,13 @@ func newConsoleLogger(c *Console) *zap.SugaredLogger {
 //
 // It replaces both the print function and the log module's logger, so it takes
 // precedence over SetPrintFunc and SetLogger - enable capture last, or do not
-// mix them. It panics if called after execution.
+// mix them. Calling it after execution is rejected: the change is ignored, and it panics under a development logger.
 func (s *Starbox) EnableConsoleCapture() *Console {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.hasExec {
-		log.DPanic("cannot enable console capture after execution")
+	if s.deniedAfterExec("enable console capture") {
+		return nil
 	}
 	c := &Console{}
 	s.console = c
