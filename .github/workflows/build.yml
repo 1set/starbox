@@ -19,9 +19,8 @@ jobs:
     # automate this).
     uses: 1set/meta/.github/workflows/go-ci.yml@496f38088eff1a37bae1b43d158146a8a9d83a37
     with:
-      # Matches go.mod's floor, raised to 1.19 by the A1 pin upgrade
-      # (go.starlark.net ffb3f39 baseline + starlight v0.2.0 + starlet v0.2.2).
-      go-floor: "1.19"
+      # The parser security baseline requires Go 1.25.0.
+      go-floor: "1.25"
       # Test-coverage ratchet (covcheck). Current total is ~99.2%; this floor
       # is intentionally conservative and can be tightened once CI reports the
       # first authoritative number. starbox is a host-runtime library, not a
