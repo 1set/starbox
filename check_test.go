@@ -106,3 +106,21 @@ func TestCheckEdges(t *testing.T) {
 		t.Errorf("Run after Check: out=%v err=%v", out, err)
 	}
 }
+
+func TestParserDepthCheckAndRun(t *testing.T) {
+	for _, depth := range []int{8, 1100} {
+		source := "value = " + strings.Repeat("(", depth) + "1" + strings.Repeat(")", depth)
+		box := starbox.New("parser-depth")
+		diagnostics, err := box.Check(source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, runErr := box.Run(source)
+		if depth == 8 && (len(diagnostics) != 0 || runErr != nil) {
+			t.Fatalf("ordinary source: %v, %v", diagnostics, runErr)
+		}
+		if depth > 1000 && (len(diagnostics) == 0 || !strings.Contains(diagnostics[0].Msg, "excessive nesting") || runErr == nil || !strings.Contains(runErr.Error(), "excessive nesting")) {
+			t.Fatalf("expected parse rejection: %v, %v", diagnostics, runErr)
+		}
+	}
+}

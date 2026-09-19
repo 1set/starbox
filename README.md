@@ -155,3 +155,11 @@ This project is inspired by and builds upon several open-source projects:
 - [Starlet](https://github.com/1set/starlet): A Go wrapper that simplifies usage, offers data conversion, libraries and extensions for Starlark.
 
 We thank the authors and contributors of these projects for their excellent works 🎉
+
+### Parser security baseline
+
+This patch requires Go 1.25.0 or newer and pins the minimal Starlark parser
+security fix (5395d018f003). Excessively nested source returns a parse error in
+both `Check` and execution; it cannot be protected by an execution-step budget
+alone. Production builds should use a supported patched Go release (validated
+with Go 1.27.1). Prior Go 1.19-compatible releases lack this parser protection.
