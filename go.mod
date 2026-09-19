@@ -1,6 +1,6 @@
 module github.com/1set/starbox
 
-go 1.25.0
+go 1.25.14
 
 require (
 	github.com/1set/starlet v0.2.3
