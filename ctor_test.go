@@ -63,8 +63,11 @@ func TestResetRunState(t *testing.T) {
 	// here so a later feature cannot silently escape the reset contract.
 	retained := strings.Fields("_ mu execTimes name structTag printFunc globals modSet namedMods loadMods modMembers scriptMods modFS dynMods userLog maxOutputEntries maxSteps scriptCache scriptCacheSet policy console")
 	cleared := strings.Fields("hasExec scriptFS modNames result resultSet")
-	fields := map[string]bool{"mac": true}
-	for _, name := range append(retained, cleared...) {
+	fields := map[string]bool{"mac": false}
+	for _, name := range retained {
+		fields[name] = false
+	}
+	for _, name := range cleared {
 		fields[name] = true
 	}
 	value := reflect.ValueOf(b).Elem()
@@ -72,12 +75,12 @@ func TestResetRunState(t *testing.T) {
 		t.Fatalf("Reset field contract covers %d fields; Box has %d", len(fields), value.NumField())
 	}
 	for i := 0; i < value.NumField(); i++ {
-		if name := value.Type().Field(i).Name; !fields[name] {
+		name := value.Type().Field(i).Name
+		clear, covered := fields[name]
+		if !covered {
 			t.Errorf("field %s has no Reset lifecycle", name)
 		}
-	}
-	for _, name := range cleared {
-		if field := value.FieldByName(name); !field.IsValid() || !field.IsZero() {
+		if clear && !value.Field(i).IsZero() {
 			t.Errorf("Reset retained run field %s", name)
 		}
 	}
