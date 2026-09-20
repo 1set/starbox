@@ -46,6 +46,154 @@ func TestNew(t *testing.T) {
 	}
 }
 
+// Reset lifecycle tests cover fresh run state, regenerated script modules, and
+// the precedence of a host-provided filesystem over registered script modules.
+func TestResetRunState(t *testing.T) {
+	b := starbox.New("reset-state")
+	b.AddResultBuiltin("output")
+	b.AddModuleScript("values", "value = 1")
+	b.SetMaxExecutionSteps(1000)
+	console := b.EnableConsoleCapture()
+	if _, err := b.Run("load('values', 'value')\noutput(value)\nprint('saved')"); err != nil {
+		t.Fatal(err)
+	}
+	oldMachine := b.GetMachine()
+	b.Reset()
+	// Every Box field has an explicit lifecycle. New fields must be classified
+	// here so a later feature cannot silently escape the reset contract.
+	retained := strings.Fields("_ mu execTimes name structTag printFunc globals modSet namedMods loadMods modMembers scriptMods modFS dynMods userLog maxOutputEntries maxSteps scriptCache scriptCacheSet policy console")
+	cleared := strings.Fields("hasExec scriptFS modNames result resultSet")
+	fields := map[string]bool{"mac": true}
+	for _, name := range append(retained, cleared...) {
+		fields[name] = true
+	}
+	value := reflect.ValueOf(b).Elem()
+	if len(fields) != value.NumField() {
+		t.Fatalf("Reset field contract covers %d fields; Box has %d", len(fields), value.NumField())
+	}
+	for i := 0; i < value.NumField(); i++ {
+		if name := value.Type().Field(i).Name; !fields[name] {
+			t.Errorf("field %s has no Reset lifecycle", name)
+		}
+	}
+	for _, name := range cleared {
+		if field := value.FieldByName(name); !field.IsValid() || !field.IsZero() {
+			t.Errorf("Reset retained run field %s", name)
+		}
+	}
+	if b.GetMachine() == oldMachine || b.GetSteps() != 0 {
+		t.Error("Reset did not replace execution state")
+	}
+	if value, set := b.GetResult(); value != nil || set {
+		t.Errorf("Reset retained the previous result: %v, %v", value, set)
+	}
+	if names := b.GetModuleNames(); len(names) != 0 {
+		t.Errorf("Reset retained previously loaded module names: %v", names)
+	}
+	// Captured output belongs to the caller until drained, even across Reset.
+	if b.Console() != console || console.Len() != 1 || console.Drain()[0].Message != "saved" {
+		t.Error("Reset discarded undrained console output")
+	}
+	if _, err := b.Run("load('values', 'value')\noutput(value + 1)"); err != nil {
+		t.Fatal(err)
+	}
+	if value, set := b.GetResult(); !set || value.String() != "2" {
+		t.Errorf("result configuration was lost: %v, %v", value, set)
+	}
+	if names := b.GetModuleNames(); !reflect.DeepEqual(names, []string{"values.star"}) {
+		t.Errorf("regenerated module list = %v", names)
+	}
+	if got := b.String(); got != "🥡Box{name:reset-state,run:2}" {
+		t.Errorf("Reset lost the lifetime run count: %s", got)
+	}
+}
+
+func TestResetScriptModules(t *testing.T) {
+	for _, mode := range []string{"Run", "RunFile", "RunnerConfig"} {
+		t.Run(mode, func(t *testing.T) {
+			b := starbox.New("reset-modules")
+			const script = "load('lib/values', 'value')\nr = value\nnames = __modules__"
+			b.AddModuleScript("main", script)
+			b.AddModuleScript("lib/values", "value = 1")
+			run := func() (starlet.StringAnyMap, error) {
+				switch mode {
+				case "RunFile":
+					return b.RunFile("main.star")
+				case "RunnerConfig":
+					return b.CreateRunConfig().FileName("main.star").Execute()
+				default:
+					return b.Run(script)
+				}
+			}
+			for cycle := 1; cycle <= 3; cycle++ {
+				if cycle > 1 {
+					b.Reset()
+					b.AddModuleScript("lib/values", fmt.Sprintf("value = %d", cycle))
+					b.AddModuleScript("lib/added", "new_value = 42")
+				}
+				out, err := run()
+				if err != nil || out["r"] != int64(cycle) {
+					t.Errorf("cycle %d: result = %v, error = %v", cycle, out, err)
+				}
+				out, err = run()
+				if err != nil || out["r"] != int64(cycle) {
+					t.Errorf("cycle %d repeated: result = %v, error = %v", cycle, out, err)
+				}
+				want := []string{"lib/values.star", "main.star"}
+				if cycle > 1 {
+					want = append([]string{"lib/added.star"}, want...)
+				}
+				if names := b.GetModuleNames(); !reflect.DeepEqual(names, want) {
+					t.Errorf("cycle %d: module names = %v; want %v", cycle, names, want)
+				}
+				var scriptNames []interface{}
+				for _, name := range want {
+					scriptNames = append(scriptNames, name)
+				}
+				if !reflect.DeepEqual(out["names"], scriptNames) {
+					t.Errorf("cycle %d: __modules__ = %v; want %v", cycle, out["names"], scriptNames)
+				}
+				if cycle > 1 {
+					out, err = b.Run("load('lib/added', 'new_value')\nr = new_value")
+					if err != nil || out["r"] != int64(42) {
+						t.Errorf("added module: result = %v, error = %v", out, err)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestResetFilesystemPrecedence(t *testing.T) {
+	b := starbox.New("reset-filesystem")
+	b.AddModuleScript("values", "value = 1")
+	const script = "load('values', 'value')\nr = value"
+	check := func(want int64) {
+		t.Helper()
+		out, err := b.Run(script)
+		if err != nil || out["r"] != want {
+			t.Fatalf("result = %v, error = %v; want %d", out, err, want)
+		}
+	}
+	check(1)
+	b.Reset()
+	mounted := memfs.New()
+	if err := mounted.WriteFile("values.star", []byte("value = 10"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	b.SetFS(mounted)
+	check(10)
+	b.Reset()
+	b.AddModuleScript("values", "value = 2")
+	check(10)
+	b.Reset()
+	b.SetFS(nil)
+	check(2)
+	b.Reset()
+	b.AddModuleScript("values", "value = 3")
+	check(3)
+}
+
 // TestSetStructTag tests the following:
 // 1. Create a new Starbox instance.
 // 2. Set the struct tag.

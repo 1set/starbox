@@ -188,7 +188,7 @@ func (c *RunnerConfig) Execute() (starlet.StringAnyMap, error) {
 	}
 
 	// set script things
-	b.mac.SetScript(cfg.fileName, cfg.script, b.modFS)
+	b.mac.SetScript(cfg.fileName, cfg.script, b.scriptFS)
 
 	// finally, run the script
 	b.markRun()

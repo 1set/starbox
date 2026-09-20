@@ -140,6 +140,21 @@ func TestPolicyGatesScriptModule(t *testing.T) {
 			t.Errorf("nested explicit allow should load; out=%v err=%v", out, err)
 		}
 	})
+	t.Run("reset preserves the load gate", func(t *testing.T) {
+		b := starbox.NewWithPolicy("reset-policy", starbox.Policy{Modules: starbox.ModuleAllow{Names: []string{"allowed.star"}}})
+		b.AddModuleScript("denied", "value = 99")
+		for _, value := range []string{"1", "2"} {
+			b.Reset()
+			b.AddModuleScript("allowed", "value = "+value)
+			out, err := b.Run("load('allowed', 'value')\nr = str(value)")
+			if err != nil || out["r"] != value {
+				t.Errorf("allowed module: result = %v, error = %v; want %s", out, err, value)
+			}
+			if _, err := b.Run("load('denied', 'value')"); err == nil {
+				t.Error("Reset made a denied script module loadable")
+			}
+		}
+	})
 }
 
 func TestPolicySurfaceCheckConverge(t *testing.T) {
