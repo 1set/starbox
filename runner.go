@@ -16,6 +16,10 @@ var (
 )
 
 // RunnerConfig defines the execution configuration for a Starbox instance.
+// Its fluent methods return a new configuration without changing the receiver.
+// Parameter maps are copied on modification; their values and the referenced
+// Starbox remain shared. Callers manage synchronization of mutable values, and
+// should use a separate Starbox for each independent execution.
 type RunnerConfig struct {
 	_        DoNotCompare
 	box      *Starbox
@@ -117,22 +121,20 @@ func (c *RunnerConfig) InspectCond(cond InspectCondFunc) *RunnerConfig {
 	return &n
 }
 
-// KeyValue sets the key-value pair for the execution.
+// KeyValue returns a configuration with the key-value pair set for execution.
 func (c *RunnerConfig) KeyValue(key string, value interface{}) *RunnerConfig {
 	n := *c
-	if n.extras == nil {
-		n.extras = make(starlet.StringAnyMap)
-	}
+	n.extras = c.extras.Clone()
 	n.extras[key] = value
 	return &n
 }
 
-// KeyValueMap merges the key-value pairs for the execution.
+// KeyValueMap returns a configuration with the key-value pairs merged for
+// execution. It copies the input map's entries, so later additions, replacements,
+// or deletions in that map do not change the configuration.
 func (c *RunnerConfig) KeyValueMap(extras starlet.StringAnyMap) *RunnerConfig {
 	n := *c
-	if n.extras == nil {
-		n.extras = make(starlet.StringAnyMap)
-	}
+	n.extras = c.extras.Clone()
 	n.extras.Merge(extras)
 	return &n
 }

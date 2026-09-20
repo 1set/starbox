@@ -3,7 +3,9 @@ package starbox_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -158,11 +160,119 @@ func TestRunnerConfig_Clone(t *testing.T) {
 		KeyValue("c", 30).
 		Script("r = a + b + c")
 	cfg2 := cfg.Clone()
-	cfg2.KeyValue("a", 100).KeyValue("b", 200).KeyValue("c", 300)
+	cfg3 := cfg2.KeyValue("a", 100).KeyValue("b", 200).KeyValue("c", 300)
 	// compare pointers
 	if cfg == cfg2 {
 		t.Error("expect different pointers, got same")
 		return
+	}
+	for i, c := range []*starbox.RunnerConfig{cfg, cfg2, cfg3} {
+		out, err := c.Execute()
+		want := []int64{60, 60, 600}[i]
+		if err != nil || out["r"] != want {
+			t.Errorf("config %d: result = %v, error = %v; want %d", i, out, err, want)
+		}
+	}
+}
+
+// Runner configuration isolation:
+//   - Every fluent method preserves the original and sibling parameter bindings.
+//   - Input maps are copied, including when adding to an existing configuration.
+//   - Concurrent branches can execute independently on separate boxes.
+func TestRunnerConfig_ParameterIsolation(t *testing.T) {
+	methods := map[string]func(*starbox.RunnerConfig) *starbox.RunnerConfig{
+		"Clone":       (*starbox.RunnerConfig).Clone,
+		"Context":     func(c *starbox.RunnerConfig) *starbox.RunnerConfig { return c.Context(context.Background()) },
+		"FileName":    func(c *starbox.RunnerConfig) *starbox.RunnerConfig { return c.FileName("copy.star") },
+		"Inspect":     func(c *starbox.RunnerConfig) *starbox.RunnerConfig { return c.Inspect(false) },
+		"InspectCond": func(c *starbox.RunnerConfig) *starbox.RunnerConfig { return c.InspectCond(nil) },
+		"KeyValue":    func(c *starbox.RunnerConfig) *starbox.RunnerConfig { return c.KeyValue("extra", 1) },
+		"KeyValueMap": func(c *starbox.RunnerConfig) *starbox.RunnerConfig {
+			return c.KeyValueMap(starlet.StringAnyMap{"extra": 1})
+		},
+		"Script":  func(c *starbox.RunnerConfig) *starbox.RunnerConfig { return c.Script("r = word + suffix") },
+		"Starbox": func(c *starbox.RunnerConfig) *starbox.RunnerConfig { return c.Starbox(starbox.New("copy")) },
+		"Timeout": func(c *starbox.RunnerConfig) *starbox.RunnerConfig { return c.Timeout(time.Minute) },
+	}
+	// Pin the complete fluent surface: a new method must join this contract test.
+	typ := reflect.TypeOf(starbox.NewRunConfig())
+	var actual, covered []string
+	for i := 0; i < typ.NumMethod(); i++ {
+		m := typ.Method(i)
+		if m.Type.NumOut() == 1 && m.Type.Out(0) == typ {
+			actual = append(actual, m.Name)
+		}
+	}
+	for name := range methods {
+		covered = append(covered, name)
+	}
+	slices.Sort(covered)
+	if !reflect.DeepEqual(actual, covered) {
+		t.Fatalf("fluent method coverage: got %v; want %v", covered, actual)
+	}
+	for name, derive := range methods {
+		t.Run(name, func(t *testing.T) {
+			base := starbox.NewRunConfig().Script("r = word + suffix").
+				KeyValueMap(starlet.StringAnyMap{"word": "base", "suffix": "!"})
+			derived := derive(base)
+			one := derived.KeyValue("word", "one")
+			many := derived.KeyValueMap(starlet.StringAnyMap{"word": "many", "suffix": "?"})
+			ignored := base.Clone()
+			ignored.KeyValue("word", "discarded")
+			ignored.KeyValueMap(starlet.StringAnyMap{"suffix": "discarded"})
+			configs := []*starbox.RunnerConfig{base, derived, one, many, ignored}
+			wants := []string{"base!", "base!", "one!", "many?", "base!"}
+			// Execute in both orders to catch changes leaking back from a later run.
+			for _, order := range [][]int{{0, 1, 2, 3, 4}, {4, 3, 2, 1, 0}} {
+				for _, i := range order {
+					out, err := configs[i].Starbox(starbox.New("isolated")).Execute()
+					if err != nil || out["r"] != wants[i] {
+						t.Errorf("config %d: result = %v, error = %v; want %q", i, out, err, wants[i])
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestRunnerConfig_ParameterMapOwnership(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		t.Run(fmt.Sprint(existing), func(t *testing.T) {
+			base := starbox.NewRunConfig().Script("r = word")
+			if existing {
+				base = base.KeyValue("word", "original")
+			}
+			input := starlet.StringAnyMap{"word": "copied"}
+			cfg := base.KeyValueMap(input).KeyValueMap(nil)
+			input["word"] = "changed"
+			delete(input, "word")
+			out, err := cfg.Starbox(starbox.New("input-map")).Execute()
+			if err != nil || out["r"] != "copied" {
+				t.Fatalf("result = %v, error = %v; want copied", out, err)
+			}
+		})
+	}
+}
+
+func TestRunnerConfig_ConcurrentBranches(t *testing.T) {
+	base := starbox.NewRunConfig().Script("r = word").KeyValue("word", "base")
+	for i := 0; i < 16; i++ {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			t.Parallel()
+			for j := 0; j < 8; j++ {
+				word := fmt.Sprintf("%d/%d", i, j)
+				cfg := base.Clone().KeyValue("word", "first").
+					KeyValueMap(starlet.StringAnyMap{"word": word}).Starbox(starbox.New("parallel"))
+				out, err := cfg.Execute()
+				if err != nil || out["r"] != word {
+					t.Fatalf("result = %v, error = %v; want %q", out, err, word)
+				}
+				out, err = base.Starbox(starbox.New("template")).Execute()
+				if err != nil || out["r"] != "base" {
+					t.Fatalf("template result = %v, error = %v; want base", out, err)
+				}
+			}
+		})
 	}
 }
 
