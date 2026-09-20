@@ -47,7 +47,8 @@ type Starbox struct {
 	loadMods         starlet.ModuleLoaderMap
 	modMembers       map[string][]string
 	scriptMods       map[string]string
-	modFS            fs.FS
+	modFS            fs.FS // host-provided filesystem configuration
+	scriptFS         fs.FS // filesystem prepared for the current machine
 	modNames         []string
 	dynMods          DynamicModuleLoader
 	userLog          *zap.SugaredLogger
@@ -116,6 +117,9 @@ func (s *Starbox) String() string {
 // Reset replaces the underlying Starlet machine with a fresh one while keeping
 // the Box's configuration (name, globals, module set, script modules, policy,
 // limits, ...), so the same Box can be run again from a clean per-run state.
+// It clears the captured result and loaded-module list, and regenerates script
+// modules on the next run. Undrained console output and the lifetime run count
+// are retained.
 //
 // Reset is for SERIAL reuse of a single Box. There is deliberately no Clone and
 // no Box pool: per-run state (globals injected during a run, the Starlark step
@@ -128,9 +132,12 @@ func (s *Starbox) Reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	//s.mac.Reset()
 	s.mac = newStarMachine(s.name)
 	s.hasExec = false
+	s.scriptFS = nil
+	s.modNames = nil
+	s.result = nil
+	s.resultSet = false
 	// Re-apply the Box-level limits/cache to the fresh machine eagerly, not
 	// lazily at the next run: newStarMachine defaults to no step budget and an
 	// enabled cache, so without this a caller that reaches for the raw machine

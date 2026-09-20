@@ -38,7 +38,7 @@ func (s *Starbox) RunFile(file string) (starlet.StringAnyMap, error) {
 
 	// run
 	s.markRun()
-	return s.applyOutputLimit(s.mac.RunFile(file, s.modFS, nil))
+	return s.applyOutputLimit(s.mac.RunFile(file, s.scriptFS, nil))
 }
 
 // RunTimeout executes a script and returns the converted output.
@@ -181,7 +181,7 @@ func (s *Starbox) prepareScriptEnv(script string) (err error) {
 	}
 
 	// set script
-	s.mac.SetScript("box.star", []byte(script), s.modFS)
+	s.mac.SetScript("box.star", []byte(script), s.scriptFS)
 
 	// all is done
 	return nil
@@ -212,6 +212,7 @@ func (s *Starbox) prepareEnv() (err error) {
 	}
 
 	// prepare script modules
+	s.scriptFS = s.modFS
 	if len(s.scriptMods) > 0 && s.modFS == nil {
 		rootFS := memfs.New()
 		// materialize in sorted name order so parent-directory creation and the
@@ -241,7 +242,7 @@ func (s *Starbox) prepareEnv() (err error) {
 			}
 			modNames = append(modNames, fp)
 		}
-		s.modFS = rootFS
+		s.scriptFS = rootFS
 	}
 
 	// set load module names
