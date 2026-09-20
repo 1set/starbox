@@ -107,19 +107,24 @@ func TestCheckEdges(t *testing.T) {
 	}
 }
 
-func TestParserDepthCheckAndRun(t *testing.T) {
-	for _, depth := range []int{8, 1100} {
-		source := "value = " + strings.Repeat("(", depth) + "1" + strings.Repeat(")", depth)
+// Parsing is checked for correctness, not isolation: the pinned interpreter
+// has no parser recursion budget. See SECURITY.md for the host boundary.
+func TestParsingCheckAndRun(t *testing.T) {
+	for _, malformed := range []bool{false, true} {
+		source := "value = " + strings.Repeat("(", 8) + "1" + strings.Repeat(")", 8)
+		if malformed {
+			source += "\nbroken = (\n"
+		}
 		box := starbox.New("parser-depth")
 		diagnostics, err := box.Check(source)
 		if err != nil {
 			t.Fatal(err)
 		}
 		_, runErr := box.Run(source)
-		if depth == 8 && (len(diagnostics) != 0 || runErr != nil) {
+		if !malformed && (len(diagnostics) != 0 || runErr != nil) {
 			t.Fatalf("ordinary source: %v, %v", diagnostics, runErr)
 		}
-		if depth > 1000 && (len(diagnostics) == 0 || !strings.Contains(diagnostics[0].Msg, "excessive nesting") || runErr == nil || !strings.Contains(runErr.Error(), "excessive nesting")) {
+		if malformed && (len(diagnostics) == 0 || runErr == nil) {
 			t.Fatalf("expected parse rejection: %v, %v", diagnostics, runErr)
 		}
 	}

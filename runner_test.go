@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -206,7 +206,7 @@ func TestRunnerConfig_ParameterIsolation(t *testing.T) {
 	for name := range methods {
 		covered = append(covered, name)
 	}
-	slices.Sort(covered)
+	sort.Strings(covered)
 	if !reflect.DeepEqual(actual, covered) {
 		t.Fatalf("fluent method coverage: got %v; want %v", covered, actual)
 	}
@@ -257,6 +257,7 @@ func TestRunnerConfig_ParameterMapOwnership(t *testing.T) {
 func TestRunnerConfig_ConcurrentBranches(t *testing.T) {
 	base := starbox.NewRunConfig().Script("r = word").KeyValue("word", "base")
 	for i := 0; i < 16; i++ {
+		i := i // Each parallel case owns its index on the Go 1.19 baseline.
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			t.Parallel()
 			for j := 0; j < 8; j++ {
