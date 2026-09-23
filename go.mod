@@ -3,7 +3,7 @@ module github.com/1set/starbox
 go 1.19
 
 require (
-	github.com/1set/starlet v0.2.3
+	github.com/1set/starlet v0.2.4
 	github.com/h2so5/here v0.0.0-20200815043652-5e14eb691fae
 	github.com/psanford/memfs v0.0.0-20230130182539-4dbf7e3e865e
 	go.starlark.net v0.0.0-20260324133313-ffb3f39dd27a
@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/1set/starlight v0.2.1 // indirect
+	github.com/1set/starlight v0.2.2 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/uuid v1.6.0 // indirect
