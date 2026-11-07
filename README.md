@@ -105,6 +105,11 @@ box.SetMaxOutputEntries(100)        // cap the number of top-level result entrie
 
 A run that exceeds the step budget fails with a `starlet.MaxStepsExceededError`; one that produces too many result entries is withheld with an `OutputLimitExceededError`. Both are reachable via `errors.As`, and both are enforced on **every** run path (`Run`, `RunFile`, `RunTimeout`, `RunInspect*`, and the `RunnerConfig.Execute()` builder).
 
+For an opt-in single-request child process, see [worker](worker/README.md).
+It supplies a parent-enforced deadline, a combined stdout/stderr capture limit,
+and direct-child termination/reaping. Existing execution APIs remain in-process.
+The worker is not a full OS or multi-tenant sandbox.
+
 ## 🔎 Inspection without Execution
 
 Learn what a script *would* see, and catch problems, without running it:

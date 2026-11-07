@@ -30,7 +30,10 @@ Documentation states this boundary; it does not remove the vulnerable code.
 For attacker-controlled source, the host needs a separately reviewed deployment
 with process isolation and external CPU, memory, time and output limits, or an
 explicit interpreter upgrade/backport with compatibility testing. Those are
-host changes, not protections supplied by this package. A newer Go compiler
+host deployment requirements. The opt-in [worker](worker/README.md) package
+supplies direct-child termination/reaping and a combined stdout/stderr capture
+limit, but does not supply CPU/RSS quotas, descendant containment or full OS
+filesystem/network isolation. Existing execution APIs stay in-process. A newer Go compiler
 alone does not patch the old interpreter. The library is not an in-process
 security boundary for untrusted or multi-tenant script execution.
 
