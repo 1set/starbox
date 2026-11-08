@@ -1536,13 +1536,52 @@ func TestGoIdiomaticEvaluation(t *testing.T) {
 		b.SetModuleSet(starbox.SafeModuleSet)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		after := 0
 		b.AddBuiltin("cancel_caller", func(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
 			cancel()
 			return starlark.None, nil
 		})
-		_, err := b.CreateRunConfig().Context(ctx).Script("cancel_caller()\nvalue, error = try_eval(\"1 + 1\")").Execute()
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("try_eval swallowed caller cancellation: %v", err)
+		b.AddBuiltin("after_eval", func(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
+			after++
+			return starlark.None, nil
+		})
+		_, err := b.CreateRunConfig().Context(ctx).Script("cancel_caller()\nvalue, error = try_eval(\"1 + 1\")\nafter_eval()").Execute()
+		// The context watcher may stop the outer VM before try_eval starts.
+		// That path returns the pinned VM's typed cancellation error, while
+		// the evaluator's context checkpoint preserves context.Canceled.
+		var vmError *starlark.EvalError
+		vmCancelled := errors.As(err, &vmError) && vmError.Msg == "Starlark computation cancelled: context cancelled"
+		if ctx.Err() != context.Canceled || (!errors.Is(err, context.Canceled) && !vmCancelled) || after != 0 {
+			t.Fatalf("caller cancellation: error=%v, context=%v, after=%d", err, ctx.Err(), after)
+		}
+	})
+
+	t.Run("try-eval-cancelled-context", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		thread := &starlark.Thread{Name: "cancelled-evaluator"}
+		thread.SetLocal("context", ctx)
+		// No outer watcher or VM can win this race: the builtin itself must
+		// return the terminal cause rather than an ordinary error-info tuple.
+		value, err := starlark.Call(thread, members["try_eval"], starlark.Tuple{starlark.String("1 + 1")}, nil)
+		if !errors.Is(err, context.Canceled) || value != starlark.None {
+			t.Fatalf("try_eval swallowed a cancelled context: value=%v, error=%v", value, err)
+		}
+	})
+
+	t.Run("pre-cancelled-caller", func(t *testing.T) {
+		b := starbox.New("idiomatic-pre-cancel")
+		b.SetModuleSet(starbox.SafeModuleSet)
+		calls := 0
+		b.AddBuiltin("script_entered", func(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
+			calls++
+			return starlark.None, nil
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := b.CreateRunConfig().Context(ctx).Script("script_entered()\nvalue, error = try_eval(\"1 + 1\")").Execute()
+		if !errors.Is(err, context.Canceled) || calls != 0 {
+			t.Fatalf("pre-cancelled caller: error=%v, script calls=%d", err, calls)
 		}
 	})
 }
