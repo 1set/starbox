@@ -1399,3 +1399,58 @@ func TestModuleWithheldError(t *testing.T) {
 		t.Error("undefined name wrongly classified as withheld")
 	}
 }
+
+// TestStarlarkEvaluationModulePolicy keeps dynamic evaluation out of the
+// default Safe/Network sets while checking explicit opt-in and Full use.
+func TestStarlarkEvaluationModulePolicy(t *testing.T) {
+	if starlet.GetBuiltinModule("starlark") == nil {
+		t.Skip("the currently pinned Starlet does not register the starlark module")
+	}
+	for _, set := range []starbox.ModuleSetName{starbox.SafeModuleSet, starbox.NetworkModuleSet} {
+		t.Run(string(set)+"/withheld", func(t *testing.T) {
+			b := starbox.New("starlark-withheld")
+			b.SetPrintFunc(noopPrint)
+			b.SetModuleSet(set)
+			_, err := b.Run(`load("starlark", "eval")`)
+			var withheld starbox.ModuleWithheldError
+			if !errors.As(err, &withheld) {
+				t.Fatalf("want ModuleWithheldError, got %T: %v", err, err)
+			}
+		})
+	}
+	for _, tc := range []struct {
+		name string
+		set  starbox.ModuleSetName
+		add  bool
+	}{
+		{"full", starbox.FullModuleSet, false},
+		{"safe-explicit", starbox.SafeModuleSet, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := starbox.New("starlark-allowed")
+			b.SetPrintFunc(noopPrint)
+			b.SetModuleSet(tc.set)
+			b.SetMaxExecutionSteps(5000)
+			if tc.add {
+				b.AddNamedModules("starlark")
+			}
+			out, err := b.Run(hereDoc(`
+				load("starlark", "eval", "try_eval")
+				def inspect():
+				    items = [1, 2]
+				    found = eval("items.index(2)", vars={"items": items})
+				    value, error = try_eval("items.append(3)", vars={"items": items})
+				    items.append(4)
+				    return (found, value == None, error != None, len(items))
+				answer = inspect()
+			`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []interface{}{int64(1), true, true, int64(3)}
+			if !reflect.DeepEqual(out["answer"], want) {
+				t.Fatalf("answer = %#v, want %#v", out["answer"], want)
+			}
+		})
+	}
+}

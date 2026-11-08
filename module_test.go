@@ -75,10 +75,16 @@ func TestModuleSetsGolden(t *testing.T) {
 
 	// 3. Fail-closed coverage: every starlet builtin module must be accounted
 	// for by an explicit classification - Safe, the network extras, or the
-	// full-only filesystem/process modules. A new (or removed) starlet module
+	// full-only modules reviewed below. A new (or removed) starlet module
 	// makes the union differ from the full set and trips this, forcing a
 	// conscious decision instead of a silent change to Safe.
 	fullOnly := []string{"file", "path", "runtime"}
+	// The data-only Starlark evaluator is deliberately full-only by default.
+	// Older supported Starlet versions do not register it. Recognize this one
+	// reviewed addition without admitting any other future module implicitly.
+	if starlet.GetBuiltinModule("starlark") != nil {
+		fullOnly = append(fullOnly, "starlark")
+	}
 	classified := append(append(append([]string(nil), safeModuleNames...), networkExtraNames...), fullOnly...)
 	if got, want := sorted(classified), sorted(fullModuleNames); !reflect.DeepEqual(got, want) {
 		t.Errorf("module classification drifted from starlet's full set:\n  classified: %v\n  full:       %v\n(classify the new/removed starlet module in module.go)", got, want)
