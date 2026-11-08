@@ -1,6 +1,7 @@
 package starbox_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1398,4 +1399,150 @@ func TestModuleWithheldError(t *testing.T) {
 	} else if errors.As(err, &mwe) {
 		t.Error("undefined name wrongly classified as withheld")
 	}
+}
+
+// TestGoIdiomaticEvaluation covers existing-module adoption, data ownership,
+// excluded outer capabilities, and the shared execution state. Older published
+// Starlet pins have neither helper, so only this new feature test skips there.
+func TestGoIdiomaticEvaluation(t *testing.T) {
+	loader := starlet.GetBuiltinModule("go_idiomatic")
+	if loader == nil {
+		t.Fatal("go_idiomatic must remain a registered builtin module")
+	}
+	members, err := loader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, hasEval := members["eval"]
+	_, hasTry := members["try_eval"]
+	if !hasEval && !hasTry {
+		t.Skip("the currently pinned Starlet does not provide go_idiomatic eval helpers")
+	}
+	if !hasEval || !hasTry {
+		t.Fatal("go_idiomatic must provide both eval and try_eval")
+	}
+
+	for _, tc := range []struct {
+		name string
+		set  starbox.ModuleSetName
+		add  bool
+		load bool
+	}{
+		{"safe", starbox.SafeModuleSet, false, false},
+		{"network", starbox.NetworkModuleSet, false, false},
+		{"full", starbox.FullModuleSet, false, false},
+		{"safe-explicit-load", starbox.SafeModuleSet, false, true},
+		{"empty-explicit", starbox.EmptyModuleSet, true, false},
+		{"empty-explicit-load", starbox.EmptyModuleSet, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := starbox.New("idiomatic-eval")
+			b.SetPrintFunc(noopPrint)
+			b.SetModuleSet(tc.set)
+			b.SetMaxExecutionSteps(5000)
+			if tc.add {
+				b.AddNamedModules("go_idiomatic")
+			}
+			script := hereDoc(`
+				def inspect():
+				    items = [1, 2]
+				    found = eval("items.index(2)", vars={"items": items})
+				    value, error = try_eval("items.append(3)", vars={"items": items})
+				    items.append(4)
+				    none_value, none_error = try_eval("None")
+				    return (found, value == None, error["phase"] == "runtime", len(items), none_value == None, none_error == None)
+				answer = inspect()
+			`)
+			if tc.load {
+				script = "load(\"go_idiomatic\", \"eval\", \"try_eval\")\n" + script
+			}
+			out, err := b.Run(script)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []interface{}{int64(1), true, true, int64(3), true, true}
+			if !reflect.DeepEqual(out["answer"], want) {
+				t.Fatalf("answer = %#v, want %#v", out["answer"], want)
+			}
+		})
+	}
+
+	t.Run("empty-without-opt-in", func(t *testing.T) {
+		b := starbox.New("idiomatic-empty")
+		b.SetModuleSet(starbox.EmptyModuleSet)
+		if _, err := b.Run(`answer = eval("1 + 2")`); err == nil || !strings.Contains(err.Error(), "eval") {
+			t.Fatalf("empty set exposed eval: %v", err)
+		}
+	})
+
+	t.Run("frozen-result", func(t *testing.T) {
+		b := starbox.New("idiomatic-frozen-result")
+		b.SetModuleSet(starbox.SafeModuleSet)
+		if _, err := b.Run("value = eval(\"[1, 2]\")\nvalue.append(3)"); err == nil || !strings.Contains(err.Error(), "frozen") {
+			t.Fatalf("mutable evaluator result: %v", err)
+		}
+	})
+
+	t.Run("outer-capabilities", func(t *testing.T) {
+		b := starbox.New("idiomatic-capabilities")
+		b.SetPrintFunc(noopPrint)
+		b.SetModuleSet(starbox.FullModuleSet)
+		calls := 0
+		b.AddBuiltin("host_callback", func(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
+			calls++
+			return starlark.None, nil
+		})
+		out, err := b.Run(hereDoc(`
+			def inspect():
+			    errors = []
+			    for source in ["sleep(0)", "exit(0)", "pprint(1)", "getenv('PATH')", "runtime.getenv('PATH')", "host_callback()"]:
+			        value, error = try_eval(source)
+			        errors.append(value == None and error != None)
+			    value, error = try_eval("fn()", vars={"fn": host_callback})
+			    errors.append(value == None and error["phase"] == "input")
+			    return errors
+			answer = inspect()
+		`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []interface{}{true, true, true, true, true, true, true}
+		if !reflect.DeepEqual(out["answer"], want) || calls != 0 {
+			t.Fatalf("capability boundary: answer=%#v, calls=%d", out["answer"], calls)
+		}
+	})
+
+	for _, source := range []string{
+		`value, error = try_eval("[i for i in range(10000)]")`,
+		hereDoc(`
+			def repeat():
+			    for i in range(1000):
+			        value, error = try_eval("1 + 1")
+			repeat()
+		`),
+	} {
+		t.Run("shared-budget", func(t *testing.T) {
+			b := starbox.New("idiomatic-budget")
+			b.SetModuleSet(starbox.SafeModuleSet)
+			b.SetMaxExecutionSteps(500)
+			if _, err := b.Run(source); err == nil || !strings.Contains(err.Error(), "step") {
+				t.Fatalf("try_eval swallowed or reset the caller budget: %v", err)
+			}
+		})
+	}
+
+	t.Run("caller-cancellation", func(t *testing.T) {
+		b := starbox.New("idiomatic-cancel")
+		b.SetModuleSet(starbox.SafeModuleSet)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		b.AddBuiltin("cancel_caller", func(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
+			cancel()
+			return starlark.None, nil
+		})
+		_, err := b.CreateRunConfig().Context(ctx).Script("cancel_caller()\nvalue, error = try_eval(\"1 + 1\")").Execute()
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("try_eval swallowed caller cancellation: %v", err)
+		}
+	})
 }
