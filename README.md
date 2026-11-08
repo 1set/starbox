@@ -130,7 +130,11 @@ box.SetMaxExecutionSteps(1_000_000) // bound interpreter steps
 box.SetMaxOutputEntries(100)        // cap the number of top-level result entries
 ```
 
-A run that exceeds the step budget fails with a `starlet.MaxStepsExceededError`; one that produces too many result entries is withheld with an `OutputLimitExceededError`. Both are reachable via `errors.As`, and both are enforced on **every** run path (`Run`, `RunFile`, `RunTimeout`, `RunInspect*`, and the `RunnerConfig.Execute()` builder).
+A run that exceeds the step budget fails with a `starlet.MaxStepsExceededError`.
+A successful run whose returned result has too many entries is withheld with an
+`OutputLimitExceededError`. Both are reachable via `errors.As`, and both apply
+to **every** run path (`Run`, `RunFile`, `RunTimeout`, `RunInspect*`, and the
+`RunnerConfig.Execute()` builder).
 
 These are cooperative interpreter limits and a count of top-level result
 entries. They do not impose CPU/RSS or output-byte quotas, preempt a blocking
@@ -145,7 +149,7 @@ diags, _ := box.Check(script)            // []Diagnostic: syntax + resolve error
 surface, _ := box.DescribeSurface()      // Surface: modules (name/origin/members) + globals (name/type)
 ```
 
-Both filter configured names through the active `Policy`. They inspect known
+Both filter configured module names through the active `Policy`. They inspect known
 builtin constructors without running the script or invoking opaque custom or
 dynamic loaders. `Check` checks syntax and name resolution; a missing `load()`
 target or a loader failure can still fail at run time. `DescribeSurface` reports
