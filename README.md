@@ -20,6 +20,19 @@ A host of powerful features are provided to supercharge your Starlark scripting 
 - **Collective Memory Sharing**: Introduces a shared memory concept, enabling data sharing across different script executions and instances, fostering a more connected and dynamic scripting environment.
 - **Advanced Scripting Tools:** Utilize features like REPL for interactive exploration and debugging, along with script caching for improved performance.
 
+## Script trust and Go compatibility
+
+Use **host-selected, reviewed scripts and modules** in the host process. Starbox's
+module policy and execution limits do not provide process isolation for arbitrary
+untrusted or multi-tenant code. The pinned interpreter lacks the upstream parser
+recursion limit; this also affects parsing for inspection. See
+[SECURITY.md](SECURITY.md) for the deployment boundary.
+
+Go **1.19 or newer** is supported. The interpreter remains pinned to
+`go.starlark.net v0.0.0-20260324133313-ffb3f39dd27a`. The compatibility
+floor is separate from the toolchain used to build production applications;
+use a currently supported Go release with security fixes.
+
 ## 📦 Installation
 
 To include `starbox` in your Go project, use the following command:
@@ -28,58 +41,72 @@ To include `starbox` in your Go project, use the following command:
 go get github.com/1set/starbox
 ```
 
+This README describes the source in this checkout. Published versions can have
+different APIs and dependency versions; check the version selected by your
+application with `go list -m all`.
+
 ## ⚙️ Usage
 
 Here's a quick example of how you can use Starbox:
 
 ```go
-import "github.com/1set/starbox"
+package main
 
-// Define your box with global variables and modules
-box := starbox.New("quick")
-box.AddKeyValue("greet", func(name string) string {
-    return fmt.Sprintf("Hello, %s!", name)
-})
-box.AddNamedModules("random")
+import (
+    "fmt"
 
-// Run a Starlark script
-script := starbox.HereDoc(`
-    target = random.choice(["World", "Starlark", "Starbox"])
-    text = greet(target)
-    print("Starlark:", text)
-    print(__modules__)
-`)
-res, err := box.Run(script)
+    "github.com/1set/starbox"
+)
 
-// Check for errors and results
-if err != nil {
-    fmt.Println("Error executing script:", err)
-    return
+func main() {
+    box := starbox.New("quick")
+    box.AddKeyValue("greet", func(name string) string {
+        return fmt.Sprintf("Hello, %s!", name)
+    })
+    box.AddNamedModules("random")
+    con := box.EnableConsoleCapture()
+
+    res, err := box.Run(starbox.HereDoc(`
+        target = random.choice(["World"])
+        text = greet(target)
+        print("Starlark:", text)
+        print(__modules__)
+    `))
+    if err != nil {
+        fmt.Println("Error executing script:", err)
+        return
+    }
+    for _, entry := range con.Drain() {
+        fmt.Println(entry.Message)
+    }
+    fmt.Println("Go:", res["text"].(string))
 }
-fmt.Println("Go:", res["text"].(string))
 ```
 
-This may output:
+Output:
 
 ```
-[⭐|quick](15:50:27.677) Starlark: Hello, Starbox!
-[⭐|quick](15:50:27.677) ["random"]
-Go: Hello, Starbox!
+Starlark: Hello, World!
+["random"]
+Go: Hello, World!
 ```
 
 ## 🔒 Security Model & Capability Gating
 
-Starbox is a **host runtime**: the Go host decides what an untrusted script may reach, and the script cannot widen that grant. The control surface has two distinct layers — Starbox implements the first; the second lives at the layer that constructs the modules.
+Starbox is a **host runtime**: the Go host selects the modules a script may load,
+and the script cannot widen that load policy. This assumes the script trust
+boundary described above. The control surface has two distinct layers — Starbox
+implements the first; the second lives at the layer that constructs the modules.
 
 ### Load gate — which modules a script may `load()`
 
-`New` selects modules through a four-tier module set (`EmptyModuleSet`, `SafeModuleSet`, `NetworkModuleSet`, `FullModuleSet`); `SafeModuleSet` is an explicit, hand-curated allowlist that can reach **neither the network nor the filesystem**.
+`New` selects modules through a four-tier module set (`EmptyModuleSet`, `SafeModuleSet`, `NetworkModuleSet`, `FullModuleSet`). `SafeModuleSet` is an explicit allowlist of builtins without filesystem or network access. It does not constrain host callbacks, custom loaders or an explicitly mounted filesystem.
 
 For stricter, host-declared control, construct the box with a `Policy` — a Go-side, **default-deny** allowlist the script can neither read nor mutate:
 
 ```go
 // Only "math" and "json" are loadable, no matter what the module set requests.
-box := starbox.NewWithPolicy("sandboxed", starbox.Policy{
+box := starbox.NewWithPolicy("restricted", starbox.Policy{
     Modules: starbox.ModuleAllow{Names: []string{"math", "json"}},
 })
 box.SetModuleSet(starbox.FullModuleSet) // requested set is INTERSECTED with the policy
@@ -88,7 +115,7 @@ box.SetModuleSet(starbox.FullModuleSet) // requested set is INTERSECTED with the
 - The **zero** `Policy{}` permits nothing — strict default-deny by construction.
 - `ModuleAllow.Capabilities` is opt-in capability widening: a non-zero tier (e.g. `starlet.CapNetwork`) permits every builtin whose capability set is a subset of it.
 - The gate covers **every named-module path** a script can load: builtin, custom (`AddModule*`), dynamic, and script modules (`AddModuleScript`, matched by their registered `.star` name).
-- A withheld **builtin** surfaces a typed `ModuleWithheldError` (matchable via `errors.As`). A policy-denied **non-builtin** (custom/dynamic/script) module is simply absent — `load()` fails as "not found", so the sandbox is not told a host-private module exists but is forbidden.
+- A withheld **builtin** surfaces a typed `ModuleWithheldError` (matchable via `errors.As`). A policy-denied **non-builtin** (custom/dynamic/script) module is simply absent — `load()` fails as "not found", so the script is not told a host-private module exists but is forbidden.
 
 > **`SetFS` is an explicit exception.** A host-mounted `fs.FS` is a raw filesystem grant with no module-name registry to match against, so it is **not** governed by the load gate. Under a restrictive policy, curate the mounted filesystem (or do not call `SetFS`).
 
@@ -99,11 +126,19 @@ Per-call filesystem / network / command / secret gating (what a *loaded* module 
 ## 📏 Execution Budgets & Output Limits
 
 ```go
-box.SetMaxExecutionSteps(1_000_000) // bound runaway loops a wall-clock timeout cannot stop
+box.SetMaxExecutionSteps(1_000_000) // bound interpreter steps
 box.SetMaxOutputEntries(100)        // cap the number of top-level result entries
 ```
 
-A run that exceeds the step budget fails with a `starlet.MaxStepsExceededError`; one that produces too many result entries is withheld with an `OutputLimitExceededError`. Both are reachable via `errors.As`, and both are enforced on **every** run path (`Run`, `RunFile`, `RunTimeout`, `RunInspect*`, and the `RunnerConfig.Execute()` builder).
+A run that exceeds the step budget fails with a `starlet.MaxStepsExceededError`.
+A successful run whose returned result has too many entries is withheld with an
+`OutputLimitExceededError`. Both are reachable via `errors.As`, and both apply
+to **every** run path (`Run`, `RunFile`, `RunTimeout`, `RunInspect*`, and the
+`RunnerConfig.Execute()` builder).
+
+These are cooperative interpreter limits and a count of top-level result
+entries. They do not impose CPU/RSS or output-byte quotas, preempt a blocking
+native Go call, or protect parsing from excessive recursion.
 
 ## 🔎 Inspection without Execution
 
@@ -114,7 +149,12 @@ diags, _ := box.Check(script)            // []Diagnostic: syntax + resolve error
 surface, _ := box.DescribeSurface()      // Surface: modules (name/origin/members) + globals (name/type)
 ```
 
-Both honor the active `Policy` — they report and accept exactly the modules a real `Run` would load, never a wider surface.
+Both filter configured module names through the active `Policy`. They inspect known
+builtin constructors without running the script or invoking opaque custom or
+dynamic loaders. `Check` checks syntax and name resolution; a missing `load()`
+target or a loader failure can still fail at run time. `DescribeSurface` reports
+unknown members as `nil` when finding them would require running a loader or
+script. Inspection follows the same source-trust boundary as execution.
 
 ## 📤 Structured Results & Console Capture
 
@@ -155,14 +195,3 @@ This project is inspired by and builds upon several open-source projects:
 - [Starlet](https://github.com/1set/starlet): A Go wrapper that simplifies usage, offers data conversion, libraries and extensions for Starlark.
 
 We thank the authors and contributors of these projects for their excellent works 🎉
-
-### Go compatibility and script trust
-
-Go **1.19 or newer** is supported. The interpreter remains pinned to
-`go.starlark.net v0.0.0-20260324133313-ffb3f39dd27a`. The compatibility
-floor is separate from the toolchain used to build production applications;
-use a currently supported Go release with security fixes.
-
-This interpreter baseline does **not** include the upstream parser recursion
-limit. Only parse host-selected, reviewed source and modules in the host
-process. See [SECURITY.md](SECURITY.md) for the known risk and deployment boundary.
