@@ -140,6 +140,11 @@ These are cooperative interpreter limits and a count of top-level result
 entries. They do not impose CPU/RSS or output-byte quotas, preempt a blocking
 native Go call, or protect parsing from excessive recursion.
 
+For an opt-in single-request child process, see [worker](worker/README.md).
+It supplies a parent-enforced deadline, a combined stdout/stderr capture limit,
+and direct-child termination/reaping. Existing execution APIs remain in-process.
+The worker is not a full OS or multi-tenant sandbox.
+
 ## 🔎 Inspection without Execution
 
 Learn what a script *would* see, and catch problems, without running it:

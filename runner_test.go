@@ -36,6 +36,20 @@ func TestRunnerConfig_Empty(t *testing.T) {
 	}
 }
 
+func TestRunnerConfigRejectsUnknownModuleSet(t *testing.T) {
+	box := starbox.New("invalid-modules")
+	box.SetModuleSet(starbox.ModuleSetName("unknown"))
+	if _, err := box.CreateRunConfig().Script("x=1").Execute(); err == nil || !strings.Contains(err.Error(), "unknown module set") {
+		t.Fatalf("invalid module set accepted: %v", err)
+	}
+	// A rejected first execution must leave the box usable after host correction.
+	box.SetModuleSet(starbox.EmptyModuleSet)
+	out, err := box.CreateRunConfig().Script("x=1").Execute()
+	if err != nil || out["x"] != int64(1) {
+		t.Fatalf("execution after corrected configuration: out=%v err=%v", out, err)
+	}
+}
+
 func TestRunnerConfig_Full(t *testing.T) {
 	box := starbox.New("aloha")
 	box.SetModuleSet(starbox.SafeModuleSet)
