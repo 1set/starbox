@@ -122,6 +122,8 @@ func (r *Runner) Run(ctx context.Context, request Request) (result Result, err e
 		files = append(files, read, write)
 	}
 	inR, inW, outR, outW, errR, errW := files[0], files[1], files[2], files[3], files[4], files[5]
+	// The executable comes from trusted host configuration; argv contains only
+	// fixed protocol options. Request data travels on stdin, never through a shell.
 	cmd := exec.Command(r.config.Executable, r.args...)
 	cmd.Dir = dir
 	cmd.Env = append([]string{}, r.env...)

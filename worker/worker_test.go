@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -69,6 +70,120 @@ func TestConfigAdmission(t *testing.T) {
 				t.Fatal("invalid config accepted")
 			}
 		})
+	}
+}
+
+func TestRequestCannotChangeCommand(t *testing.T) {
+	t.Setenv("STARBOX_WORKER_TEST_SECRET", "synthetic-do-not-inherit")
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := Config{Executable: executable, Timeout: 5 * time.Second, MaxRequestBytes: 4096, MaxOutputBytes: 4096}
+	r, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.Executable = "untrusted-after-new"
+	config.MaxRequestBytes = 1
+	if r.config.Executable != executable || !reflect.DeepEqual(r.args, []string{"--protocol=1", "--max-input=4096"}) {
+		t.Fatalf("command changed with caller configuration: executable=%q args=%q", r.config.Executable, r.args)
+	}
+	// A helper reports the command boundary as seen by the actual child.
+	r.args = []string{"-test.run=^TestWorkerHelper$"}
+	r.env = append(r.env, "STARBOX_WORKER_HELPER=command-boundary", "GORACE=atexit_sleep_ms=0", "GOCOVERDIR="+t.TempDir())
+	request := Request{
+		Source:   "; echo injected | sh\n$(echo injected) `echo injected`",
+		Filename: "--max-input=0; injected.star",
+		Modules:  map[string]string{"--protocol=2.star": "source sent on stdin"},
+	}
+	result, err := r.Run(context.Background(), request)
+	assertReaped(t, result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Args    []string
+		Request Request
+		Secret  bool
+	}
+	if err := json.Unmarshal(result.Payload, &got); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Args, r.args) || !reflect.DeepEqual(got.Request, request) || got.Secret {
+		t.Fatalf("request crossed command boundary: %+v", got)
+	}
+}
+
+func TestConcurrentRequestsRemainIndependent(t *testing.T) {
+	r := helperRunner(t, "serve")
+	type completion struct {
+		label  string
+		result Result
+		err    error
+	}
+	done := make(chan completion, 4)
+	for i := 0; i < cap(done); i++ {
+		label := fmt.Sprintf("request-%d", i)
+		go func() {
+			result, err := r.Run(context.Background(), Request{Source: fmt.Sprintf("print(%q); output(%q)", label, label)})
+			done <- completion{label, result, err}
+		}()
+	}
+	pids := make(map[int]bool)
+	for i := 0; i < cap(done); i++ {
+		got := <-done
+		assertReaped(t, got.result)
+		if got.err != nil || string(got.result.Payload) != fmt.Sprintf("%q", got.label) ||
+			string(got.result.Stderr) != got.label+"\n" || pids[got.result.PID] {
+			t.Fatalf("requests mixed: label=%s pid=%d payload=%s stderr=%s err=%v", got.label, got.result.PID, got.result.Payload, got.result.Stderr, got.err)
+		}
+		pids[got.result.PID] = true
+	}
+}
+
+func TestCancellationAfterChildIsReady(t *testing.T) {
+	r := helperRunner(t, "cancel-ready")
+	ready := t.TempDir() + "/ready"
+	r.env = append(r.env, "STARBOX_WORKER_READY_FILE="+ready)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type completion struct {
+		result Result
+		err    error
+	}
+	done := make(chan completion, 1)
+	go func() {
+		result, err := r.Run(ctx, Request{Source: strings.Repeat(" ", 128<<10)})
+		done <- completion{result, err}
+	}()
+	deadline := time.NewTimer(4 * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case early := <-done:
+			t.Fatalf("child exited before readiness: %v", early.err)
+		case <-deadline.C:
+			cancel()
+			<-done
+			t.Fatal("child did not report readiness")
+		case <-ticker.C:
+			if _, err := os.Stat(ready); err == nil {
+				cancel()
+				select {
+				case got := <-done:
+					assertReaped(t, got.result)
+					if !errors.Is(got.err, context.Canceled) || got.result.Payload != nil {
+						t.Fatalf("cancellation lost: %v payload=%s", got.err, got.result.Payload)
+					}
+				case <-deadline.C:
+					t.Fatal("cancelled child did not return")
+				}
+				return
+			}
+		}
 	}
 }
 
@@ -248,6 +363,25 @@ func TestWorkerHelper(t *testing.T) {
 		return
 	}
 	switch mode {
+	case "command-boundary":
+		var request wireRequest
+		if err := json.NewDecoder(os.Stdin).Decode(&request); err != nil {
+			os.Exit(98)
+		}
+		payload, _ := json.Marshal(struct {
+			Args    []string
+			Request Request
+			Secret  bool
+		}{os.Args[1:], request.Request, os.Getenv("STARBOX_WORKER_TEST_SECRET") != ""})
+		_ = json.NewEncoder(os.Stdout).Encode(wireResponse{Protocol: 1, OK: true, Result: payload})
+		os.Exit(0)
+	case "cancel-ready":
+		if err := os.WriteFile(os.Getenv("STARBOX_WORKER_READY_FILE"), []byte("ready"), 0600); err != nil {
+			os.Exit(98)
+		}
+		for {
+			time.Sleep(time.Hour)
+		}
 	case "stall":
 		fmt.Fprintln(os.Stderr, "READY")
 		for {
