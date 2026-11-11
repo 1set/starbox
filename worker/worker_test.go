@@ -31,7 +31,9 @@ func helperRunner(t *testing.T, mode string) *Runner {
 		t.Fatal(err)
 	}
 	r.args = []string{"-test.run=^TestWorkerHelper$"}
-	r.env = append(r.env, "STARBOX_WORKER_HELPER="+mode, "GORACE=atexit_sleep_ms=0", "GOCOVERDIR="+t.TempDir())
+	// Each Run gives its child a private working directory. Keep instrumented
+	// helper output there so concurrent children cannot race to replace covmeta.
+	r.env = append(r.env, "STARBOX_WORKER_HELPER="+mode, "GORACE=atexit_sleep_ms=0", "GOCOVERDIR=.")
 	return r
 }
 
