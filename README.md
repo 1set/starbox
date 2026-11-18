@@ -33,6 +33,9 @@ Go **1.19 or newer** is supported. The interpreter remains pinned to
 floor is separate from the toolchain used to build production applications;
 use a currently supported Go release with security fixes.
 
+Runtime libraries: [Starlet v0.2.5](https://github.com/1set/starlet/releases/tag/v0.2.5)
+and [Starlight v0.2.3](https://github.com/1set/starlight/releases/tag/v0.2.3).
+
 ## 📦 Installation
 
 To include `starbox` in your Go project, use the following command:
